@@ -251,6 +251,10 @@ export interface FontLibApi {
     addToCollection(id: number, familyIds: number[]): Promise<void>
     removeFromCollection(id: number, familyIds: number[]): Promise<void>
     addTags(familyIds: number[], tags: string[]): Promise<void>
+    /** Renames a tag everywhere (merging into an existing tag of that name). */
+    renameTag(from: string, to: string): Promise<void>
+    /** Asks for confirmation, then removes the tag from every family. */
+    deleteTag(name: string): Promise<boolean>
     /** Asks for confirmation, then removes the families. Resolves true if removed. */
     removeFamilies(familyIds: number[]): Promise<boolean>
     /** Merges families into targetId; newName (if given) renames the result. */
@@ -308,6 +312,8 @@ export const IPC = {
   addToCollection: 'organize:add-to-collection',
   removeFromCollection: 'organize:remove-from-collection',
   addTags: 'organize:add-tags',
+  renameTag: 'organize:rename-tag',
+  deleteTag: 'organize:delete-tag',
   removeFamilies: 'organize:remove-families',
   merge: 'organize:merge',
   contextMenu: 'ui:context-menu',

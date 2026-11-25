@@ -174,6 +174,17 @@ function registerIpc(): void {
   ipcMain.handle(IPC.addToCollection, (_e, id: number, ids: unknown) => organize.addToCollection(id, ids))
   ipcMain.handle(IPC.removeFromCollection, (_e, id: number, ids: unknown) => organize.removeFromCollection(id, ids))
 
+  ipcMain.handle(IPC.renameTag, (_e, from: unknown, to: unknown) => organize.renameTag(from, to))
+  ipcMain.handle(IPC.deleteTag, async (event, name: unknown) => {
+    const ok = await confirm(
+      event.sender,
+      `Delete the tag “${String(name)}”?`,
+      'It is removed from every family. The fonts stay in your library.',
+      'Delete'
+    )
+    if (ok) organize.deleteTag(name)
+    return ok
+  })
   ipcMain.handle(IPC.addTags, (_e, ids: unknown, tags: unknown) => organize.addTagsToFamilies(ids, tags))
   ipcMain.handle(IPC.removeFamilies, async (event, ids: number[]) => {
     if (!Array.isArray(ids) || ids.length === 0) return false

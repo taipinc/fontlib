@@ -176,7 +176,11 @@ export function importInputs(inputs: Input[], spec: SourceSpec): ImportOutcome {
        VALUES (?, 'github', ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))`
     ),
     styleByPs: db.prepare('SELECT id FROM styles WHERE family_id = ? AND postscript_name = ?'),
-    styleHasStored: db.prepare("SELECT 1 FROM assets WHERE style_id = ? AND storage = 'stored' LIMIT 1"),
+    styleByOrigin: db.prepare(
+      'SELECT family_id FROM styles WHERE postscript_name = ? AND origin_family = ? COLLATE NOCASE LIMIT 1'
+    ),
+    // A style keeps one stored file per format (e.g. TTF, OTF and WOFF2 of the same face).
+    styleHasFormat: db.prepare("SELECT 1 FROM assets WHERE style_id = ? AND storage = 'stored' AND kind = ? LIMIT 1"),
     insertStyle: db.prepare(`
       INSERT INTO styles (family_id, postscript_name, full_name, style_name, weight, italic, width,
                           is_variable, axes, features, scripts, glyph_count, version, origin_family)
@@ -214,7 +218,10 @@ export function importInputs(inputs: Input[], spec: SourceSpec): ImportOutcome {
         for (const s of styles) {
           const license = s.license ?? (spec.type === 'github' ? (spec.license ?? null) : null)
           const licenseUrl = s.licenseUrl ?? (spec.type === 'github' ? (spec.licenseUrl ?? null) : null)
-          let familyId = (q.familyByName.get(s.familyName) as { id: number } | undefined)?.id
+          // The same face may already live in another family after a merge: follow it there.
+          const merged = q.styleByOrigin.get(s.postscriptName, s.familyName) as { family_id: number } | undefined
+          let familyId =
+            merged?.family_id ?? (q.familyByName.get(s.familyName) as { id: number } | undefined)?.id
           if (familyId === undefined) {
             familyId = Number(
               q.insertFamily.run(s.familyName, s.designer, s.foundry, license, licenseUrl).lastInsertRowid
@@ -226,7 +233,7 @@ export function importInputs(inputs: Input[], spec: SourceSpec): ImportOutcome {
           }
 
           const existingStyle = q.styleByPs.get(familyId, s.postscriptName) as { id: number } | undefined
-          if (existingStyle && q.styleHasStored.get(existingStyle.id)) {
+          if (existingStyle && q.styleHasFormat.get(existingStyle.id, assetKind(input.filename))) {
             result.skippedDuplicates++
             continue
           }

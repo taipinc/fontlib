@@ -27,7 +27,7 @@ Electron with a Vite-built renderer, TypeScript throughout. Develop first as a p
 - **Renderer:** React or Svelte (agent's choice, stay consistent), plain CSS with custom properties for theming (light and dark). No heavy UI kit.
 - **Main process:** owns filesystem, SQLite, network fetches (GitHub, Google repo, Adobe API), font parsing and woff2 conversion. The renderer talks to it only through a typed preload IPC bridge.
 - **Storage:** SQLite (better-sqlite3) for metadata; a library folder for stored font files. Default `~/Library/Application Support/<app>/`, location configurable from the first version so syncing the folder later is trivial.
-- **Font parsing:** fontkit for name table, axes, features, cmap coverage, license strings (name IDs 13 and 14), `.ttc` collections. Subsetting and woff2 via fonttools (pyftsubset) or a Node equivalent such as subset-font plus wawoff2; pick one and bundle it.
+- **Font parsing:** fontkit for name table, axes, features, cmap coverage, license strings (name IDs 13 and 14), `.ttc` collections. No conversion toolchain: the app keeps the files the designer provided (see Export).
 - **Security:** contextIsolation on, nodeIntegration off, strict CSP. Remote stylesheets and fonts allowed only from fonts.googleapis.com, fonts.gstatic.com, use.typekit.net and p.typekit.net, plus the GitHub CDN if used for previews.
 - **Secrets:** the Adobe API token lives in the macOS keychain (Electron safeStorage), never in SQLite or plain config.
 - **Distribution:** unsigned local build is fine (personal use). Mac only.
@@ -113,27 +113,20 @@ A type-pairing workspace inspired by FontBase's playground. A fixed placeholder 
 
 ## Export
 
-Every family has an Export action. Output depends on the source, and everything goes to a folder the user picks.
+*Revised Nov 25, 2026:* no conversion. The app keeps every format the designer provided (a style can hold its TTF, OTF and WOFF2 side by side), and "export" is **Show in Finder** on a family or a style's files, so the user copies what a project needs. Originals stay in the library folder. woff2 generation, subsetting and static instancing are dropped from v1; they could return later as an optional tool for sources that ship no web fonts.
 
-| Source | Desktop files | Web files | Embed code |
-| --- | --- | --- | --- |
-| Google | TTFs fetched from the google/fonts repo on demand, temp copy discarded | woff2 generated from those TTFs | Google link and `@import` snippet, plus self-hosted `@font-face` CSS |
-| GitHub or file | Stored originals | woff2 generated | Self-hosted `@font-face` CSS |
-| System | Copy of the file, with a license warning (many macOS system fonts are not redistributable) | woff2 only if the user confirms the warning | Self-hosted `@font-face` CSS |
-| Adobe | Not available | Not available | Kit link and `font-family` CSS only |
+| Source | Files |
+| --- | --- |
+| GitHub or file | Show in Finder on the stored originals (all imported formats) |
+| System | Show in Finder on the installed file (many macOS system fonts are not redistributable) |
+| Google | Link-only; the family page links to the specimen and repo. A later "fetch TTFs" action may download them from the google/fonts repo |
+| Adobe | Kit link and `font-family` CSS only |
 
-**Processing options**
-
-- woff2 conversion for every web export.
-- Subsetting: Latin only, custom unicode ranges, or keep all; optional feature pruning.
-- Variable fonts: export the variable file, or static instances at chosen axis values (fonttools instancer).
-- Every export includes a generated CSS file with `@font-face` blocks and `font-display: swap`.
-
-**Project collections.** A collection of kind "project" can be exported as one bundle: a `fonts/` folder of woff2 files, one CSS file, and a text file of the embed snippets for its Google and Adobe members.
+**Project collections.** A collection of kind "project" can gather its members' original files into one folder, plus a text file of the embed snippets for its Google and Adobe members (no conversion).
 
 **Library backup.** A separate Export Library action writes the metadata as JSON plus the stored files, and a matching Import restores it. This covers a corrupted database or a new machine until real sync exists.
 
-**License gate.** Read the license from the font and the source. Block or warn on export where it is non-redistributable, and show the license in the detail view.
+**License gate.** Read the license from the font and the source and show it in the detail view; warn before handing out files that are non-redistributable (system fonts).
 
 ## Edge cases and risks
 
@@ -153,7 +146,7 @@ Every family has an Export action. Output depends on the source, and everything 
 Build in this order; each milestone should be usable on its own.
 
 1. **Foundation and preview.** Vite app, SQLite schema, library folder, local file import with fontkit parsing, grid and rows layouts, preview-text controls, tags and collections, light and dark themes.
-2. **System fonts and export.** System picker (path plus PostScript name, `.ttc` support, missing-state handling), detail view with axes and features, export with woff2, subsetting and generated CSS, Electron shell.
+2. **System fonts and export.** System picker (path plus PostScript name, `.ttc` support, missing-state handling), detail view with axes and features, Show in Finder in place of export, Electron shell.
 3. **Google Fonts.** Paste-link add, per-family metadata from the google/fonts repo, CSS2 preview, on-demand TTF fetch for export, offline state.
 4. **Adobe Fonts.** Origin-check spike first, then token storage in the keychain, kit sync, selective import, link-only entries and embed snippets.
 5. **GitHub import.** Repo URL, file and release listing, selective import, version and tag recorded, rate-limit handling.

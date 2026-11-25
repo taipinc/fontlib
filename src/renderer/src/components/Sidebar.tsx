@@ -6,6 +6,7 @@ export type View =
   | { kind: 'source'; source: SourceType }
   | { kind: 'collection'; id: number }
   | { kind: 'category'; name: string }
+  | { kind: 'tag'; name: string }
 
 const SOURCES: { type: SourceType; label: string }[] = [
   { type: 'google', label: 'Google Fonts' },
@@ -29,6 +30,7 @@ interface Props {
   onNewCollection(): void
   onCollectionMenu(c: CollectionSummary): void
   onCategoryMenu(name: string): void
+  onTagMenu(name: string): void
   onDropOnCollection(collectionId: number, familyId: number): void
 }
 
@@ -60,6 +62,10 @@ export function Sidebar(p: Props) {
   )
 
   const sourceCount = (t: SourceType): number => families.filter((f) => f.sources.includes(t)).length
+  const tagCounts = new Map<string, number>()
+  for (const f of families) for (const t of f.tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1)
+  const tags = [...tagCounts.keys()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+
   const categories = [...new Set(families.map((f) => f.category).filter((c): c is string => !!c))].sort((a, b) =>
     a.localeCompare(b)
   )
@@ -116,6 +122,24 @@ export function Sidebar(p: Props) {
                 },
                 c.kind === 'project' ? <span className="mark sidebar-mark">Project</span> : null
               )
+            )
+          )}
+        </div>
+
+        <div className="sidebar-group">
+          <div className="sidebar-heading">
+            <span>Tags</span>
+          </div>
+          {tags.length === 0 ? (
+            <div className="sidebar-placeholder">None yet</div>
+          ) : (
+            tags.map((t) =>
+              item({ kind: 'tag', name: t }, t, tagCounts.get(t), {
+                onContextMenu: (e) => {
+                  e.preventDefault()
+                  p.onTagMenu(t)
+                }
+              })
             )
           )}
         </div>

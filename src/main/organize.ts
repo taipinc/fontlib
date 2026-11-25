@@ -432,3 +432,30 @@ export function setDefaultStyle(familyId: number, styleId: number, variation: un
     familyId
   )
 }
+
+/** Renames a tag everywhere. Renaming onto an existing tag merges the two. */
+export function renameTag(from: unknown, to: unknown): void {
+  const oldName = cleanName(from)
+  const newName = cleanName(to)
+  const db = getDb()
+  db.transaction(() => {
+    const old = db.prepare('SELECT id FROM tags WHERE name = ?').get(oldName) as { id: number } | undefined
+    if (!old) throw new Error(`No tag named “${oldName}”`)
+    const target = db.prepare('SELECT id FROM tags WHERE name = ? AND id != ?').get(newName, old.id) as
+      | { id: number }
+      | undefined
+    if (target) {
+      db.prepare('INSERT OR IGNORE INTO family_tags (family_id, tag_id) SELECT family_id, ? FROM family_tags WHERE tag_id = ?').run(
+        target.id,
+        old.id
+      )
+      db.prepare('DELETE FROM tags WHERE id = ?').run(old.id)
+    } else {
+      db.prepare('UPDATE tags SET name = ? WHERE id = ?').run(newName, old.id)
+    }
+  })()
+}
+
+export function deleteTag(name: unknown): void {
+  getDb().prepare('DELETE FROM tags WHERE name = ?').run(cleanName(name))
+}

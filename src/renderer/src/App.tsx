@@ -347,6 +347,31 @@ function Library({ initial }: { initial: Settings }) {
       })
   }
 
+  const tagMenu = async (name: string): Promise<void> => {
+    const choice = await api.ui.contextMenu([
+      { id: 'rename', label: 'Rename…' },
+      { id: 'delete', label: 'Delete Tag…' }
+    ])
+    if (choice === 'rename')
+      prompt({
+        title: 'Rename Tag',
+        initial: name,
+        confirmLabel: 'Rename',
+        onSubmit: (to) => {
+          setDialog(null)
+          act(async () => {
+            await api.organize.renameTag(name, to)
+            if (view.kind === 'tag' && view.name === name) setView({ kind: 'tag', name: to })
+          })
+        }
+      })
+    if (choice === 'delete')
+      act(async () => {
+        const deleted = await api.organize.deleteTag(name)
+        if (deleted && view.kind === 'tag' && view.name === name) setView({ kind: 'all' })
+      })
+  }
+
   const visible = useMemo(() => {
     let list: FamilySummary[]
     switch (view.kind) {
@@ -358,6 +383,9 @@ function Library({ initial }: { initial: Settings }) {
         break
       case 'category':
         list = families.filter((f) => f.category === view.name)
+        break
+      case 'tag':
+        list = families.filter((f) => f.tags.includes(view.name))
         break
       case 'collection': {
         const byId = new Map(families.map((f) => [f.id, f]))
@@ -432,6 +460,7 @@ function Library({ initial }: { initial: Settings }) {
         onNewCollection={() => newCollection()}
         onCollectionMenu={collectionMenu}
         onCategoryMenu={categoryMenu}
+        onTagMenu={tagMenu}
         onDropOnCollection={(cid, fid) => act(() => api.organize.addToCollection(cid, [fid]))}
       />
       <main

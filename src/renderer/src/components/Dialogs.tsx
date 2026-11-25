@@ -556,7 +556,7 @@ export function GitHubPicker({
         <span className="cell-sub gh-count">
           {selected.size
             ? `${selected.size} ${selected.size === 1 ? 'file' : 'files'} · ${formatBytes(selectedSize)}`
-            : 'Pick the files to import. Duplicates in other formats are skipped automatically.'}
+            : 'Pick the files to import. Files already in your library are skipped.'}
         </span>
         <button
           type="button"
