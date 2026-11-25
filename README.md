@@ -78,8 +78,6 @@ Previews that need the network show an "Offline" state instead of a substitute f
 - **Renderer** (`src/renderer`) talks to it only through a typed preload bridge (`src/shared/api.ts`), with context isolation, sandboxing and a strict Content Security Policy.
 - Fonts reach the window through a private `fontlib://` protocol that serves only files registered in the database, so the renderer never sees file paths.
 
-The original product spec is in [`Font Library App — Spec.md`](Font%20Library%20App%20%E2%80%94%20Spec.md).
-
 ## Contributing
 
 Contributions are welcome: bug reports, ideas and pull requests. For anything larger than a small fix, please open an issue first to talk it through. Run `npm run typecheck` before sending a pull request.
