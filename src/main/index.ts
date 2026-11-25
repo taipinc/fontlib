@@ -4,6 +4,7 @@ import { IPC, type AppInfo, type MenuItem, type Settings } from '@shared/api'
 import { getDb } from './db'
 import { importPaths } from './importer'
 import { backfillOriginFamilies, getFamily, getGlyphs, getSettings, listFamilies, setSettings } from './library'
+import { exportLibrary, importLibrary, readBackup } from './backup'
 import * as pairings from './pairings'
 import { addFromKit, listKits, previewKit, removeKit, renameKit, syncKit } from './adobe'
 import { importGitHub, lookupGitHub } from './github'
@@ -262,9 +263,88 @@ function registerIpc(): void {
   ipcMain.handle(IPC.settingsSet, (_event, patch: Settings) => setSettings(patch ?? {}))
 }
 
+async function exportLibraryFlow(): Promise<void> {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  const pick = await dialog.showOpenDialog(win, {
+    title: 'Export Library',
+    message: 'Choose where to save the backup folder.',
+    buttonLabel: 'Export Here',
+    properties: ['openDirectory', 'createDirectory']
+  })
+  if (pick.canceled || !pick.filePaths[0]) return
+  try {
+    const r = exportLibrary(pick.filePaths[0])
+    const res = await dialog.showMessageBox(win, {
+      type: 'info',
+      message: 'Library exported',
+      detail: `${r.families} families and ${r.files} stored font files were saved to\n${r.path}`,
+      buttons: ['Show in Finder', 'OK'],
+      defaultId: 1
+    })
+    if (res.response === 0) shell.showItemInFolder(r.path)
+  } catch (e) {
+    dialog.showErrorBox('Export failed', (e as Error).message)
+  }
+}
+
+async function importLibraryFlow(): Promise<void> {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  const pick = await dialog.showOpenDialog(win, {
+    title: 'Import Library',
+    message: 'Choose a “FontLib Backup” folder.',
+    buttonLabel: 'Import',
+    properties: ['openDirectory']
+  })
+  if (pick.canceled || !pick.filePaths[0]) return
+  try {
+    const data = readBackup(pick.filePaths[0])
+    const ok = await dialog.showMessageBox(win, {
+      type: 'warning',
+      message: 'Replace your library with this backup?',
+      detail: `The backup holds ${data.tables.families?.length ?? 0} families (exported ${new Date(data.exportedAt).toLocaleString()}). Your current database is saved as a safety copy in the library folder first.`,
+      buttons: ['Replace Library', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1
+    })
+    if (ok.response !== 0) return
+    const r = await importLibrary(pick.filePaths[0])
+    await verifySystemAssets()
+    win?.webContents.reload()
+    dialog.showMessageBox(win, {
+      type: 'info',
+      message: 'Library restored',
+      detail: `${r.families} families imported. The previous database was saved as ${r.safetyCopy.split('/').pop()}.`
+    })
+  } catch (e) {
+    dialog.showErrorBox('Import failed', (e as Error).message)
+  }
+}
+
+function buildMenu(): void {
+  const template: MenuItemConstructorOptions[] = [
+    { role: 'appMenu' },
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Export Library…', click: () => void exportLibraryFlow() },
+        { label: 'Import Library…', click: () => void importLibraryFlow() },
+        { type: 'separator' },
+        { label: 'Show Library Folder', click: () => void shell.openPath(libraryPath()) },
+        { type: 'separator' },
+        { role: 'close' }
+      ]
+    },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' }
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 app.whenReady().then(() => {
   getDb()
   backfillOriginFamilies()
+  buildMenu()
   handleProtocol()
   registerIpc()
   createWindow()
