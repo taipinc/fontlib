@@ -263,12 +263,9 @@ export interface TagSummary {
   count: number
 }
 
-export type CollectionKind = 'plain' | 'project'
-
 export interface CollectionSummary {
   id: number
   name: string
-  kind: CollectionKind
   /** Families in the collection, in collection order. */
   familyIds: number[]
   /** Saved pairings in the collection. */
@@ -329,9 +326,8 @@ export interface FontLibApi {
     setCategory(familyIds: number[], category: string | null): Promise<void>
     renameCategory(from: string, to: string | null): Promise<void>
     collections(): Promise<CollectionSummary[]>
-    createCollection(name: string, kind: CollectionKind): Promise<number>
+    createCollection(name: string): Promise<number>
     renameCollection(id: number, name: string): Promise<void>
-    setCollectionKind(id: number, kind: CollectionKind): Promise<void>
     /** Asks for confirmation, then deletes the collection (not its fonts). */
     deleteCollection(id: number): Promise<boolean>
     addToCollection(id: number, familyIds: number[]): Promise<void>
@@ -434,7 +430,6 @@ export const IPC = {
   collections: 'organize:collections',
   createCollection: 'organize:create-collection',
   renameCollection: 'organize:rename-collection',
-  setCollectionKind: 'organize:set-collection-kind',
   deleteCollection: 'organize:delete-collection',
   addToCollection: 'organize:add-to-collection',
   removeFromCollection: 'organize:remove-from-collection',

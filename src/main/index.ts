@@ -209,9 +209,8 @@ function registerIpc(): void {
   ipcMain.handle(IPC.setCategory, (_e, ids: unknown, category: unknown) => organize.setCategory(ids, category))
   ipcMain.handle(IPC.renameCategory, (_e, from: unknown, to: unknown) => organize.renameCategory(from, to))
   ipcMain.handle(IPC.collections, () => organize.listCollections())
-  ipcMain.handle(IPC.createCollection, (_e, name: unknown, kind: unknown) => organize.createCollection(name, kind))
+  ipcMain.handle(IPC.createCollection, (_e, name: unknown) => organize.createCollection(name))
   ipcMain.handle(IPC.renameCollection, (_e, id: number, name: unknown) => organize.renameCollection(id, name))
-  ipcMain.handle(IPC.setCollectionKind, (_e, id: number, kind: unknown) => organize.setCollectionKind(id, kind))
   ipcMain.handle(IPC.deleteCollection, async (event, id: number) => {
     const ok = await confirm(event.sender, 'Delete this collection?', 'The fonts in it stay in your library.', 'Delete')
     if (ok) organize.deleteCollection(id)

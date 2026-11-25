@@ -34,5 +34,6 @@
   },
   "allowScripts": {
     "better-sqlite3": false
-  }
+  },
+  "license": "MIT"
 }

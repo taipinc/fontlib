@@ -123,8 +123,7 @@ export function Sidebar(p: Props) {
                     const id = Number(e.dataTransfer.getData(FAMILY_DRAG_TYPE))
                     if (Number.isInteger(id) && id > 0) p.onDropOnCollection(c.id, id)
                   }
-                },
-                c.kind === 'project' ? <span className="mark sidebar-mark">Project</span> : null
+                }
               )
             )
           )}

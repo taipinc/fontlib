@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, rmdirSync, unlinkSync } from 'node:fs'
 import { dirname, resolve, sep } from 'node:path'
-import type { CollectionKind, CollectionSummary, TagSummary } from '@shared/api'
+import type { CollectionSummary, TagSummary } from '@shared/api'
 import { parseSourceLink } from '@shared/links'
 import { getDb } from './db'
 import { fontsPath } from './paths'
@@ -70,10 +70,9 @@ export function renameCategory(from: unknown, to: unknown): void {
 
 export function listCollections(): CollectionSummary[] {
   const db = getDb()
-  const cols = db.prepare('SELECT id, name, kind FROM collections ORDER BY name COLLATE NOCASE').all() as {
+  const cols = db.prepare('SELECT id, name FROM collections ORDER BY name COLLATE NOCASE').all() as {
     id: number
     name: string
-    kind: CollectionKind
   }[]
   const items = db
     .prepare('SELECT collection_id, family_id, pairing_id FROM collection_items ORDER BY collection_id, position')
@@ -85,18 +84,14 @@ export function listCollections(): CollectionSummary[] {
   }))
 }
 
-export function createCollection(name: unknown, kind: unknown): number {
-  const k: CollectionKind = kind === 'project' ? 'project' : 'plain'
-  return Number(getDb().prepare('INSERT INTO collections (name, kind) VALUES (?, ?)').run(cleanName(name), k).lastInsertRowid)
+export function createCollection(name: unknown): number {
+  return Number(getDb().prepare('INSERT INTO collections (name) VALUES (?)').run(cleanName(name)).lastInsertRowid)
 }
 
 export function renameCollection(id: number, name: unknown): void {
   getDb().prepare('UPDATE collections SET name = ? WHERE id = ?').run(cleanName(name), id)
 }
 
-export function setCollectionKind(id: number, kind: unknown): void {
-  getDb().prepare('UPDATE collections SET kind = ? WHERE id = ?').run(kind === 'project' ? 'project' : 'plain', id)
-}
 
 export function deleteCollection(id: number): void {
   getDb().prepare('DELETE FROM collections WHERE id = ?').run(id)

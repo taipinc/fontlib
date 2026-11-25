@@ -140,7 +140,7 @@ function Library({ initial }: { initial: Settings }) {
       onSubmit: (name) => {
         setDialog(null)
         act(async () => {
-          const id = await api.organize.createCollection(name, 'plain')
+          const id = await api.organize.createCollection(name)
           if (then) await then(id)
         })
       }
@@ -307,7 +307,6 @@ function Library({ initial }: { initial: Settings }) {
   const collectionMenu = async (c: CollectionSummary): Promise<void> => {
     const choice = await api.ui.contextMenu([
       { id: 'rename', label: 'Rename…' },
-      { id: 'project', label: 'Project Collection', type: 'checkbox', checked: c.kind === 'project' },
       { type: 'separator' },
       { id: 'delete', label: 'Delete Collection…' }
     ])
@@ -321,8 +320,6 @@ function Library({ initial }: { initial: Settings }) {
           act(() => api.organize.renameCollection(c.id, name))
         }
       })
-    if (choice === 'project')
-      act(() => api.organize.setCollectionKind(c.id, c.kind === 'project' ? 'plain' : 'project'))
     if (choice === 'delete')
       act(async () => {
         const deleted = await api.organize.deleteCollection(c.id)

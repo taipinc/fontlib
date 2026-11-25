@@ -23,7 +23,7 @@ A personal font library for macOS. It holds only the fonts you deliberately add,
 
 Duplicates are merged: the same family arriving from several sources becomes one family with several sources. Each style keeps every format the designer provided (TTF, OTF, WOFF2…) side by side.
 
-**Browsing.** A grid or rows layout, shared preview text and size, search by name, designer, tag or category, light and dark themes. Organise with collections (including project collections), tags and hand-assigned categories. Select several families to tag, categorise, collect or merge them in one go.
+**Browsing.** A grid or rows layout, shared preview text and size, search by name, designer, tag or category, light and dark themes. Organise with collections, tags and hand-assigned categories. Select several families to tag, categorise, collect or merge them in one go.
 
 **Family pages.** Every style of a family, an editable large preview, a style picker with variable axis sliders, OpenType feature toggles, a glyph map with code points and glyph names, source links, license, notes, and a saved default style (with axis values) used everywhere the family is previewed. Merged families group their styles by the family each font file declares.
 
@@ -80,6 +80,14 @@ Previews that need the network show an "Offline" state instead of a substitute f
 
 The original product spec is in [`Font Library App — Spec.md`](Font%20Library%20App%20%E2%80%94%20Spec.md).
 
+## Contributing
+
+Contributions are welcome: bug reports, ideas and pull requests. For anything larger than a small fix, please open an issue first to talk it through. Run `npm run typecheck` before sending a pull request.
+
 ## Status
 
 FontLib is built for one person's workflow and is still evolving. Not supported: installing or activating fonts (copy the files from Finder and install them yourself), syncing between machines (use Export/Import Library), Windows and Linux.
+
+## License
+
+[MIT](LICENSE)

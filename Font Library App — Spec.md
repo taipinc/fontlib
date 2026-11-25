@@ -43,7 +43,7 @@ A family is the unit users browse; styles hang under it; each family can have se
 | Source | family, type (google, adobe, github, file, system), url, repo URL, release tag or commit, version string, last checked date |
 | Asset | style, kind (ttf, otf, woff2, variable), storage (stored, system-path, remote), path or URL, size |
 | Tag | name; many-to-many with families |
-| Collection | name, kind (plain or project), ordered families |
+| Collection | name, ordered families and pairings |
 | Pairing | heading family and style, body family and style, per-role size, line-height, tracking, weight, name |
 | Setting | library path, theme, last preview text, Adobe token reference |
 
@@ -93,7 +93,7 @@ All sources enter through one Add dialog. A paste field detects the source from 
 
 **Shared controls:** custom preview text (persisted), size, and a style selector per family. Choosing a preview text for a script (Latin, Hebrew, etc.) should default to that script's sample when a font's coverage requires it.
 
-**Filtering and organizing:** tags and collections (including project collections, see Export); filter by source, variable or static, weight count, script coverage, OpenType features; search by name, designer, tag.
+**Filtering and organizing:** tags and collections; filter by source, variable or static, weight count, script coverage, OpenType features; search by name, designer, tag.
 
 **Detail view:** all styles of a family, axis sliders for variable fonts, OpenType feature toggles, glyph map, source links, license, notes, and the export actions.
 
@@ -122,8 +122,6 @@ A type-pairing workspace inspired by FontBase's playground. A fixed placeholder 
 | Google | Link-only; the family page links to the specimen and repo. A later "fetch TTFs" action may download them from the google/fonts repo |
 | Adobe | Kit link and `font-family` CSS only |
 
-**Project collections.** A collection of kind "project" can gather its members' original files into one folder, plus a text file of the embed snippets for its Google and Adobe members (no conversion).
-
 **Library backup.** A separate Export Library action writes the metadata as JSON plus the stored files, and a matching Import restores it. This covers a corrupted database or a new machine until real sync exists.
 
 **License gate.** Read the license from the font and the source and show it in the detail view; warn before handing out files that are non-redistributable (system fonts).
@@ -150,7 +148,7 @@ Build in this order; each milestone should be usable on its own.
 3. **Google Fonts.** Paste-link add, per-family metadata from the google/fonts repo, CSS2 preview, on-demand TTF fetch for export, offline state.
 4. **Adobe Fonts.** Origin-check spike first, then token storage in the keychain, kit sync, selective import, link-only entries and embed snippets.
 5. **GitHub import.** Repo URL, file and release listing, selective import, version and tag recorded, rate-limit handling.
-6. **Playground and projects.** Heading and body pairing, saved pairings, copy CSS, project collections with bundle export, library export and import.
+6. **Playground and backup.** Heading and body pairing, saved pairings, copy CSS, library export and import. *(Project collections with bundle export were dropped on Nov 25, 2026.)*
 
 ## Open items
 
