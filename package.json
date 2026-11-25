@@ -10,7 +10,8 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "postinstall": "install-electron"
+    "postinstall": "install-electron",
+    "dist": "npm run build && electron-builder --mac"
   },
   "dependencies": {
     "better-sqlite3": "^13.2.0",
@@ -26,6 +27,7 @@
     "@types/yauzl": "^3.4.0",
     "@vitejs/plugin-react": "^6.3.0",
     "electron": "^45.5.0",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
@@ -35,5 +37,32 @@
   "allowScripts": {
     "better-sqlite3": false
   },
-  "license": "MIT"
+  "license": "MIT",
+  "build": {
+    "appId": "io.github.taipinc.fontlib",
+    "productName": "FontLib",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**"
+    ],
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "identity": null
+    },
+    "npmRebuild": false
+  }
 }

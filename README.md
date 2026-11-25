@@ -49,6 +49,7 @@ Other scripts:
 | `npm run build` | Builds the main process, preload script and renderer into `out/` |
 | `npm run preview` | Runs the built app |
 | `npm run typecheck` | Type-checks the main and renderer code |
+| `npm run dist` | Builds an unsigned `FontLib.app` for Apple Silicon into `dist/mac-arm64/`; drag it into Applications to install |
 
 ## Where your library lives
 
