@@ -1501,3 +1501,108 @@ label {
 .modal:has(.add-dialog.is-wide) {
   width: 620px;
 }
+
+/* Family page: Styles / Glyphs switch */
+
+.style-list-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px 12px;
+}
+
+/* Glyph map */
+
+.glyph-note {
+  padding: 20px;
+  color: var(--text-muted);
+}
+
+.glyph-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 8px 20px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.glyph-inspector {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.glyph-big {
+  width: 128px;
+  height: 128px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 88px;
+  line-height: 1;
+  color: var(--specimen);
+}
+
+.glyph-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.glyph-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-top: 12px;
+  text-align: right;
+}
+
+.glyph-controls select {
+  max-width: 280px;
+  padding: 0 8px;
+}
+
+.glyph-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  border-top: 1px solid var(--border);
+  margin-right: -1px;
+}
+
+.glyph-cell {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--specimen);
+  font-size: 26px;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.glyph-cell:hover,
+.glyph-cell.is-focus {
+  background: var(--bg-selected);
+}
+
+.glyph-more {
+  width: auto;
+  margin: 16px 20px 24px;
+  padding: 0 14px;
+}
+
+.style-list-heading .segmented {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text);
+}

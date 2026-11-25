@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { IPC, type AppInfo, type MenuItem, type Settings } from '@shared/api'
 import { getDb } from './db'
 import { importPaths } from './importer'
-import { backfillOriginFamilies, getFamily, getSettings, listFamilies, setSettings } from './library'
+import { backfillOriginFamilies, getFamily, getGlyphs, getSettings, listFamilies, setSettings } from './library'
 import { importGitHub, lookupGitHub } from './github'
 import { addSystemFamilies, listSystemFamilies, verifySystemAssets } from './system'
 import { addGoogleFamily, lookupGoogle } from './google'
@@ -157,6 +157,7 @@ function registerIpc(): void {
     return (await addGoogleFamily(url)).familyId
   })
 
+  ipcMain.handle(IPC.glyphs, (_e, id: number) => getGlyphs(id))
   ipcMain.handle(IPC.systemList, () => listSystemFamilies())
   ipcMain.handle(IPC.systemAdd, (_e, names: unknown) => addSystemFamilies(names))
   ipcMain.handle(IPC.githubLookup, async (_e, url: unknown) => {

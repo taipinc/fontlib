@@ -4,6 +4,7 @@ import { DEFAULT_ON, featureName, featureSettings, userFeatures } from '../featu
 import { variationCss } from '../fonts'
 import type { Theme } from '../theme'
 import { SOURCE_LABEL } from './FamilyGrid'
+import { GlyphMap } from './GlyphMap'
 import { Specimen } from './Specimen'
 
 const api = window.fontlib
@@ -109,6 +110,7 @@ export function FamilyPage(p: Props) {
   const [axes, setAxes] = useState<Record<string, number>>({})
   const [featureState, setFeatureState] = useState<Record<string, boolean>>({})
   const [featuresOpen, setFeaturesOpen] = useState(false)
+  const [tab, setTab] = useState<'styles' | 'glyphs'>('styles')
 
   useEffect(() => {
     let alive = true
@@ -335,9 +337,18 @@ export function FamilyPage(p: Props) {
 
           <section className="style-list">
             <div className="style-list-heading">
-              {family.styles.length} {family.styles.length === 1 ? 'style' : 'styles'}
+              <div className="segmented" role="tablist">
+                <button className={tab === 'styles' ? 'is-active' : ''} onClick={() => setTab('styles')}>
+                  {family.styles.length} {family.styles.length === 1 ? 'Style' : 'Styles'}
+                </button>
+                <button className={tab === 'glyphs' ? 'is-active' : ''} onClick={() => setTab('glyphs')}>
+                  Glyphs
+                </button>
+              </div>
+              {tab === 'glyphs' && <span className="cell-sub">{style.styleName}</span>}
             </div>
-            {groups.map((g) => (
+            {tab === 'glyphs' && <GlyphMap style={style} variation={variation} features={featureCss} />}
+            {tab === 'styles' && groups.map((g) => (
               <div key={g.name} className={grouped ? 'style-group' : undefined}>
                 {grouped && (
                   <div className="style-group-heading">

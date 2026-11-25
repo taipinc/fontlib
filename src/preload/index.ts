@@ -16,6 +16,7 @@ const api: FontLibApi = {
     removeFamily: (id) => ipcRenderer.invoke(IPC.removeFamily, id),
     revealFamily: (id) => ipcRenderer.invoke(IPC.revealFamily, id),
     family: (id) => ipcRenderer.invoke(IPC.family, id),
+    glyphs: (id) => ipcRenderer.invoke(IPC.glyphs, id),
     onChanged: (listener) => {
       const handler = (): void => listener()
       ipcRenderer.on(IPC.libraryChanged, handler)

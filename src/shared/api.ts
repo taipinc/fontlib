@@ -38,6 +38,15 @@ export interface StyleSummary {
   previewUrl?: string
 }
 
+/** The characters a font covers, for the glyph map. */
+export interface GlyphInfo {
+  codePoints: number[]
+  /** Glyph name for each code point (same order), when the font provides one. */
+  names: (string | null)[]
+  /** Total glyphs in the font, including unencoded ones (alternates, ligatures). */
+  glyphCount: number
+}
+
 /** An installed family, as listed by the system font picker (never persisted). */
 export interface SystemFamily {
   name: string
@@ -242,6 +251,8 @@ export interface FontLibApi {
     removeFamily(familyId: number): Promise<boolean>
     revealFamily(familyId: number): Promise<void>
     family(familyId: number): Promise<FamilyDetail | null>
+    /** The style's character map, or null when it has no local file (e.g. Google Fonts). */
+    glyphs(styleId: number): Promise<GlyphInfo | null>
     /** Subscribes to library changes made outside the renderer (e.g. relocated system fonts). */
     onChanged(listener: () => void): () => void
     updateFamily(familyId: number, patch: FamilyPatch): Promise<void>
@@ -324,6 +335,7 @@ export const IPC = {
   googleAdd: 'google:add',
   githubLookup: 'github:lookup',
   systemList: 'system:list',
+  glyphs: 'library:glyphs',
   systemAdd: 'system:add',
   libraryChanged: 'library:changed',
   githubImport: 'github:import',

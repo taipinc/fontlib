@@ -3,6 +3,7 @@ import type {
   Axis,
   FamilyDetail,
   FamilySummary,
+  GlyphInfo,
   Settings,
   SourceDetail,
   SourceType,
@@ -12,6 +13,7 @@ import type {
 } from '@shared/api'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import * as fontkit from 'fontkit'
 import { getDb } from './db'
 import { parseFontBuffer } from './parse'
 import { fontsPath } from './paths'
@@ -324,4 +326,36 @@ export function backfillOriginFamilies(): void {
       if (origin) update.run(origin, r.id)
     }
   })()
+}
+
+const glyphCache = new Map<number, GlyphInfo>()
+
+/** Characters a style's font maps (from its cmap), with glyph names where the font has them. */
+export function getGlyphs(styleId: number): GlyphInfo | null {
+  const asset = getDb()
+    .prepare(
+      `SELECT id, storage, path, collection_index FROM assets
+       WHERE style_id = ? AND storage != 'remote' AND missing = 0
+       ORDER BY CASE kind WHEN 'ttf' THEN 0 WHEN 'otf' THEN 1 WHEN 'ttc' THEN 2 ELSE 3 END LIMIT 1`
+    )
+    .get(styleId) as { id: number; storage: string; path: string; collection_index: number | null } | undefined
+  if (!asset) return null
+  const hit = glyphCache.get(asset.id)
+  if (hit) return hit
+
+  const file = asset.storage === 'stored' ? resolve(fontsPath(), asset.path) : asset.path
+  const parsed = fontkit.create(readFileSync(file)) as any
+  const font = parsed.type === 'TTC' ? parsed.fonts[asset.collection_index ?? 0] : parsed
+  const codePoints = (font.characterSet as number[]).filter((cp) => cp >= 0x20).sort((a, b) => a - b)
+  const names = codePoints.map((cp) => {
+    try {
+      const n = font.glyphForCodePoint(cp)?.name
+      return typeof n === 'string' && n !== '.notdef' ? n : null
+    } catch {
+      return null
+    }
+  })
+  const info: GlyphInfo = { codePoints, names, glyphCount: font.numGlyphs ?? codePoints.length }
+  glyphCache.set(asset.id, info)
+  return info
 }
