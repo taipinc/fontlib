@@ -1684,3 +1684,157 @@ label {
   color: var(--text-muted);
   user-select: text;
 }
+
+/* Playground */
+
+.pg-pairing-name {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.pg-surface {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  position: relative;
+  background: var(--bg);
+  color: var(--specimen);
+}
+
+.pg-doc {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 64px 48px 96px;
+  outline: none;
+  user-select: text;
+  cursor: text;
+  font-synthesis: none;
+}
+
+.pg-doc h1,
+.pg-doc h2 {
+  font-family: var(--pg-h-family);
+  font-weight: var(--pg-h-weight);
+  font-style: var(--pg-h-style);
+  line-height: var(--pg-h-lh);
+  letter-spacing: var(--pg-h-track);
+  font-variation-settings: var(--pg-h-var);
+  visibility: var(--pg-h-vis);
+  margin: 0 0 0.4em;
+}
+
+.pg-doc h1 {
+  font-size: var(--pg-h-size);
+}
+
+.pg-doc h2 {
+  font-size: calc(var(--pg-h-size) * 0.6);
+  margin-bottom: 1em;
+}
+
+.pg-doc p,
+.pg-doc ul {
+  margin: 0 0 1em;
+}
+
+.pg-doc ul {
+  padding-left: 1.2em;
+}
+
+.pg-doc blockquote {
+  margin: 1.5em 0;
+  padding-left: 1em;
+  border-left: 2px solid currentColor;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.pg-reset {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  font-size: 11px;
+}
+
+.pg-panel {
+  padding: 0;
+}
+
+.pg-slot {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pg-slot-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.pg-keys {
+  font-weight: 400;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  color: var(--text-faint);
+}
+
+.pg-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pg-family {
+  flex: 1;
+  min-width: 0;
+  padding: 0 6px;
+}
+
+.pg-style {
+  width: 100%;
+  margin-top: 6px;
+  padding: 0 6px;
+}
+
+.pg-slider {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+}
+
+.pg-slider .axis-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pg-slider input {
+  width: 100%;
+  margin: 4px 0 0;
+  accent-color: var(--accent);
+}
+
+/* Pairings in a collection */
+
+.pairing-row {
+  cursor: default;
+}
+
+.pairing-row:hover {
+  background: var(--bg-hover);
+}
+
+.pairing-sample {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pairing-empty {
+  padding-top: 20px;
+}

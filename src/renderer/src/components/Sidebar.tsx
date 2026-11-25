@@ -7,6 +7,7 @@ export type View =
   | { kind: 'collection'; id: number }
   | { kind: 'category'; name: string }
   | { kind: 'tag'; name: string }
+  | { kind: 'playground' }
 
 const SOURCES: { type: SourceType; label: string }[] = [
   { type: 'google', label: 'Google Fonts' },
@@ -74,7 +75,10 @@ export function Sidebar(p: Props) {
     <aside className="sidebar">
       <div className="sidebar-drag" />
       <nav className="sidebar-scroll">
-        <div className="sidebar-group">{item({ kind: 'all' }, 'All', families.length)}</div>
+        <div className="sidebar-group">
+          {item({ kind: 'all' }, 'All', families.length)}
+          {item({ kind: 'playground' }, 'Playground')}
+        </div>
 
         <div className="sidebar-group">
           <div className="sidebar-heading">Sources</div>

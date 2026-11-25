@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CollectionSummary, FamilySummary, ImportResult, MenuItem, Settings } from '@shared/api'
+import type { CollectionSummary, FamilySummary, ImportResult, MenuItem, Pairing, Settings } from '@shared/api'
 import { Sidebar, type View } from './components/Sidebar'
 import { Toolbar, type Layout, type SelectionAction } from './components/Toolbar'
 import { FamilyGrid, FamilyRows } from './components/FamilyGrid'
 import { AddDialog, MergeDialog, PromptDialog, SystemDialog, TagDialog } from './components/Dialogs'
 import { FamilyPage } from './components/FamilyPage'
 import { AdobeKits } from './components/AdobeKits'
+import { Playground } from './components/Playground'
+import { PairingStrip } from './components/PairingStrip'
 import { systemTheme, useApplyTheme, type Theme } from './theme'
 
 const api = window.fontlib
@@ -56,6 +58,7 @@ function Library({ initial }: { initial: Settings }) {
   const [dragging, setDragging] = useState(false)
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [openFamily, setOpenFamily] = useState<number | null>(null)
+  const [openPairing, setOpenPairing] = useState<Pairing | null>(null)
   const [revision, setRevision] = useState(0)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const anchor = useRef<number | null>(null)
@@ -392,6 +395,9 @@ function Library({ initial }: { initial: Settings }) {
       case 'tag':
         list = families.filter((f) => f.tags.includes(view.name))
         break
+      case 'playground':
+        list = []
+        break
       case 'collection': {
         const byId = new Map(families.map((f) => [f.id, f]))
         const ids = collections.find((c) => c.id === view.id)?.familyIds ?? []
@@ -483,7 +489,27 @@ function Library({ initial }: { initial: Settings }) {
         }}
         onDrop={onDrop}
       >
-        {openFamily !== null ? (
+        {view.kind === 'playground' && openFamily === null ? (
+          <Playground
+            families={families}
+            collections={collections}
+            openPairing={openPairing}
+            onOpened={() => setOpenPairing(null)}
+            theme={theme}
+            onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+            act={act}
+            onStatus={showStatus}
+            onPrompt={(opts) =>
+              prompt({
+                ...opts,
+                onSubmit: (v) => {
+                  setDialog(null)
+                  opts.onSubmit(v)
+                }
+              })
+            }
+          />
+        ) : openFamily !== null ? (
           <FamilyPage
             familyId={openFamily}
             revision={revision}
@@ -549,7 +575,19 @@ function Library({ initial }: { initial: Settings }) {
                   }
                 />
               )}
-              {isAdobeView && visible.length === 0 ? null : loaded && families.length === 0 ? (
+              {view.kind === 'collection' && (
+                <PairingStrip
+                  collection={collections.find((c) => c.id === view.id)}
+                  families={families}
+                  revision={revision}
+                  act={act}
+                  onOpen={(pr) => {
+                    setOpenPairing(pr)
+                    setView({ kind: 'playground' })
+                  }}
+                />
+              )}
+              {(isAdobeView || view.kind === 'collection') && visible.length === 0 ? null : loaded && families.length === 0 ? (
                 <div className="empty">
                   <p className="empty-title">Your library is empty</p>
                   <p className="empty-body">Drop font files, folders or zips here, or use Add Fonts.</p>

@@ -38,6 +38,40 @@ export interface StyleSummary {
   previewUrl?: string
 }
 
+/** Typesetting for one role (heading or body) in the playground. */
+export interface RoleSettings {
+  size: number
+  lineHeight: number
+  /** Letter-spacing in em. */
+  tracking: number
+  /** Axis values for variable styles. */
+  variation?: Variation
+}
+
+export interface PairingSlot {
+  familyId: number
+  styleId: number | null
+}
+
+export interface Pairing {
+  id: number
+  name: string
+  heading: PairingSlot
+  body: PairingSlot
+  settings: { heading?: RoleSettings; body?: RoleSettings }
+  createdAt: string
+  collectionIds: number[]
+}
+
+export interface PairingInput {
+  /** Updates this pairing when set; creates a new one otherwise. */
+  id?: number
+  name: string
+  heading: PairingSlot
+  body: PairingSlot
+  settings: { heading?: RoleSettings; body?: RoleSettings }
+}
+
 /** A saved Adobe Fonts web project (kit), read from its CSS link. */
 export interface AdobeKit {
   id: number
@@ -237,6 +271,8 @@ export interface CollectionSummary {
   kind: CollectionKind
   /** Families in the collection, in collection order. */
   familyIds: number[]
+  /** Saved pairings in the collection. */
+  pairingIds: number[]
 }
 
 /** A native context menu, described from the renderer and shown by main. */
@@ -316,6 +352,14 @@ export interface FontLibApi {
     /** Adds the family (or attaches it to an existing one). Resolves with the family id. */
     add(url: string): Promise<number>
   }
+  pairings: {
+    list(): Promise<Pairing[]>
+    save(pairing: PairingInput): Promise<number>
+    /** Asks for confirmation, then deletes the pairing (not its fonts). */
+    remove(id: number): Promise<boolean>
+    addToCollection(collectionId: number, pairingId: number): Promise<void>
+    removeFromCollection(collectionId: number, pairingId: number): Promise<void>
+  }
   adobe: {
     kits(): Promise<AdobeKit[]>
     /** Reads a kit link (saved or not) and lists its families. */
@@ -369,6 +413,11 @@ export const IPC = {
   githubLookup: 'github:lookup',
   systemList: 'system:list',
   adobeKits: 'adobe:kits',
+  pairingsList: 'pairings:list',
+  pairingsSave: 'pairings:save',
+  pairingsRemove: 'pairings:remove',
+  pairingsAddToCollection: 'pairings:add-to-collection',
+  pairingsRemoveFromCollection: 'pairings:remove-from-collection',
   adobePreview: 'adobe:preview',
   adobeAdd: 'adobe:add',
   adobeSync: 'adobe:sync',

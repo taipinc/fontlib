@@ -4,6 +4,7 @@ import { IPC, type AppInfo, type MenuItem, type Settings } from '@shared/api'
 import { getDb } from './db'
 import { importPaths } from './importer'
 import { backfillOriginFamilies, getFamily, getGlyphs, getSettings, listFamilies, setSettings } from './library'
+import * as pairings from './pairings'
 import { addFromKit, listKits, previewKit, removeKit, renameKit, syncKit } from './adobe'
 import { importGitHub, lookupGitHub } from './github'
 import { addSystemFamilies, listSystemFamilies, verifySystemAssets } from './system'
@@ -159,6 +160,17 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.glyphs, (_e, id: number) => getGlyphs(id))
+  ipcMain.handle(IPC.pairingsList, () => pairings.listPairings())
+  ipcMain.handle(IPC.pairingsSave, (_e, p: unknown) => pairings.savePairing(p))
+  ipcMain.handle(IPC.pairingsRemove, async (event, id: number) => {
+    const ok = await confirm(event.sender, 'Delete this pairing?', 'The fonts stay in your library.', 'Delete')
+    if (ok) pairings.deletePairing(id)
+    return ok
+  })
+  ipcMain.handle(IPC.pairingsAddToCollection, (_e, cid: number, pid: number) => pairings.addPairingToCollection(cid, pid))
+  ipcMain.handle(IPC.pairingsRemoveFromCollection, (_e, cid: number, pid: number) =>
+    pairings.removePairingFromCollection(cid, pid)
+  )
   ipcMain.handle(IPC.adobeKits, () => listKits())
   ipcMain.handle(IPC.adobePreview, (_e, url: unknown) => {
     if (typeof url !== 'string') throw new Error('Invalid link')

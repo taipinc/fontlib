@@ -76,13 +76,12 @@ export function listCollections(): CollectionSummary[] {
     kind: CollectionKind
   }[]
   const items = db
-    .prepare(
-      'SELECT collection_id, family_id FROM collection_items WHERE family_id IS NOT NULL ORDER BY collection_id, position'
-    )
-    .all() as { collection_id: number; family_id: number }[]
+    .prepare('SELECT collection_id, family_id, pairing_id FROM collection_items ORDER BY collection_id, position')
+    .all() as { collection_id: number; family_id: number | null; pairing_id: number | null }[]
   return cols.map((c) => ({
     ...c,
-    familyIds: items.filter((i) => i.collection_id === c.id).map((i) => i.family_id)
+    familyIds: items.filter((i) => i.collection_id === c.id && i.family_id !== null).map((i) => i.family_id!),
+    pairingIds: items.filter((i) => i.collection_id === c.id && i.pairing_id !== null).map((i) => i.pairing_id!)
   }))
 }
 

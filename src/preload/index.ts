@@ -30,6 +30,13 @@ const api: FontLibApi = {
     setDefaultStyle: (familyId, styleId, variation) =>
       ipcRenderer.invoke(IPC.setDefaultStyle, familyId, styleId, variation)
   },
+  pairings: {
+    list: () => ipcRenderer.invoke(IPC.pairingsList),
+    save: (p) => ipcRenderer.invoke(IPC.pairingsSave, p),
+    remove: (id) => ipcRenderer.invoke(IPC.pairingsRemove, id),
+    addToCollection: (cid, pid) => ipcRenderer.invoke(IPC.pairingsAddToCollection, cid, pid),
+    removeFromCollection: (cid, pid) => ipcRenderer.invoke(IPC.pairingsRemoveFromCollection, cid, pid)
+  },
   adobe: {
     kits: () => ipcRenderer.invoke(IPC.adobeKits),
     preview: (url) => ipcRenderer.invoke(IPC.adobePreview, url),
