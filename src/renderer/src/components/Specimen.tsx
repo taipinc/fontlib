@@ -20,16 +20,23 @@ interface Props {
 
 /** Text set in a library font. Invisible until the face is loaded; never shows a fallback font. */
 export function Specimen({ style, text, size, className, variation, features, wrap, editable, onEdit }: Props) {
-  const face = useFace(style?.assetId ?? null)
+  const face = useFace(style)
 
-  if (face.status === 'error') {
-    return <div className={'specimen specimen-unavailable ' + (className ?? '')}>Preview unavailable</div>
+  if (face.status === 'error' || face.status === 'offline') {
+    return (
+      <div className={'specimen specimen-unavailable ' + (className ?? '')}>
+        {face.status === 'offline' ? 'Offline' : 'Preview unavailable'}
+      </div>
+    )
   }
 
+  const ready = face.status === 'ready'
   const css: CSSProperties = {
-    fontFamily: face.status === 'ready' ? `"${face.family}"` : undefined,
+    fontFamily: ready ? `"${face.family}"` : undefined,
+    fontWeight: ready && face.weight ? face.weight : undefined,
+    fontStyle: ready && face.italic ? 'italic' : undefined,
     fontSize: `${size}px`,
-    visibility: face.status === 'ready' ? 'visible' : 'hidden',
+    visibility: ready ? 'visible' : 'hidden',
     fontVariationSettings: variation,
     fontFeatureSettings: features
   }

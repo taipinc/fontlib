@@ -1213,3 +1213,108 @@ label {
 .style-group .style-row {
   padding-left: 40px;
 }
+
+/* Add dialog */
+
+.modal:has(.add-dialog) {
+  width: 460px;
+}
+
+.add-result {
+  min-height: 40px;
+  margin-top: 10px;
+}
+
+.add-error {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #c0392b;
+}
+
+:root[data-theme='dark'] .add-error {
+  color: #ff7b6b;
+}
+
+.google-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.google-card .specimen {
+  margin-bottom: 6px;
+}
+
+.google-note {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.add-actions {
+  align-items: center;
+}
+
+.add-spacer {
+  flex: 1;
+}
+
+/* Default style */
+
+.default-button {
+  margin-left: auto;
+  align-self: center;
+  border: 1px solid var(--border);
+}
+
+.default-button.is-default {
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.style-default-mark {
+  margin-left: 8px;
+  vertical-align: 1px;
+}
+
+/* Style bar layout: picker + default button on the left, axes fill the rest. */
+
+.style-bar {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 28px;
+}
+
+.style-bar-main {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.style-bar-axes {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px 20px;
+}
+
+.style-bar .axis {
+  width: auto;
+  min-width: 0;
+}
+
+.style-bar .axis-head span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.default-button {
+  margin-left: 0;
+  min-width: 104px;
+  height: 28px;
+}

@@ -408,3 +408,27 @@ export function assetFilePath(assetId: number): string | null {
   if (!row || row.storage === 'remote') return null
   return row.storage === 'stored' ? resolve(fontsPath(), row.path) : row.path
 }
+
+/** Saves the family's default style (and axis values for variable fonts) used in previews. */
+export function setDefaultStyle(familyId: number, styleId: number, variation: unknown): void {
+  const db = getDb()
+  const style = db.prepare('SELECT axes FROM styles WHERE id = ? AND family_id = ?').get(styleId, familyId) as
+    | { axes: string }
+    | undefined
+  if (!style) throw new Error('That style is not in this family')
+  let value: string | null = null
+  if (variation && typeof variation === 'object') {
+    const axes = JSON.parse(style.axes) as { tag: string; min: number; max: number }[]
+    const clean: Record<string, number> = {}
+    for (const a of axes) {
+      const v = (variation as Record<string, unknown>)[a.tag]
+      if (typeof v === 'number' && Number.isFinite(v)) clean[a.tag] = Math.min(a.max, Math.max(a.min, v))
+    }
+    if (Object.keys(clean).length) value = JSON.stringify(clean)
+  }
+  db.prepare(`UPDATE families SET default_style_id = ?, default_variation = ?, updated_at = ${now} WHERE id = ?`).run(
+    styleId,
+    value,
+    familyId
+  )
+}

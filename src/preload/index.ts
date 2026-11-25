@@ -20,7 +20,13 @@ const api: FontLibApi = {
     addSourceLink: (id, url) => ipcRenderer.invoke(IPC.addSourceLink, id, url),
     removeSourceLink: (id) => ipcRenderer.invoke(IPC.removeSourceLink, id),
     moveStyle: (id, target) => ipcRenderer.invoke(IPC.moveStyle, id, target),
-    revealAsset: (id) => ipcRenderer.invoke(IPC.revealAsset, id)
+    revealAsset: (id) => ipcRenderer.invoke(IPC.revealAsset, id),
+    setDefaultStyle: (familyId, styleId, variation) =>
+      ipcRenderer.invoke(IPC.setDefaultStyle, familyId, styleId, variation)
+  },
+  google: {
+    lookup: (url) => ipcRenderer.invoke(IPC.googleLookup, url),
+    add: (url) => ipcRenderer.invoke(IPC.googleAdd, url)
   },
   organize: {
     tags: () => ipcRenderer.invoke(IPC.tags),

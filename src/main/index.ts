@@ -4,6 +4,7 @@ import { IPC, type AppInfo, type MenuItem, type Settings } from '@shared/api'
 import { getDb } from './db'
 import { importPaths } from './importer'
 import { backfillOriginFamilies, getFamily, getSettings, listFamilies, setSettings } from './library'
+import { addGoogleFamily, lookupGoogle } from './google'
 import * as organize from './organize'
 import { libraryPath } from './paths'
 import { handleProtocol, registerSchemePrivileges } from './protocol'
@@ -133,6 +134,18 @@ function registerIpc(): void {
   ipcMain.handle(IPC.revealAsset, (_e, id: number) => {
     const path = organize.assetFilePath(id)
     if (path) shell.showItemInFolder(path)
+  })
+
+  ipcMain.handle(IPC.setDefaultStyle, (_e, familyId: number, styleId: number, variation: unknown) =>
+    organize.setDefaultStyle(familyId, styleId, variation)
+  )
+  ipcMain.handle(IPC.googleLookup, async (_e, url: unknown) => {
+    if (typeof url !== 'string') throw new Error('Invalid link')
+    return (await lookupGoogle(url)).preview
+  })
+  ipcMain.handle(IPC.googleAdd, async (_e, url: unknown) => {
+    if (typeof url !== 'string') throw new Error('Invalid link')
+    return (await addGoogleFamily(url)).familyId
   })
 
   ipcMain.handle(IPC.tags, () => organize.listTags())

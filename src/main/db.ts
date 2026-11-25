@@ -121,6 +121,11 @@ const MIGRATIONS: string[] = [
   // v2: the font's own family name at import, so merged families can show where each style came from.
   `
   ALTER TABLE styles ADD COLUMN origin_family TEXT;
+  `,
+  // v3: a user-chosen default style (and axis values) per family, used for previews.
+  `
+  ALTER TABLE families ADD COLUMN default_style_id INTEGER REFERENCES styles(id) ON DELETE SET NULL;
+  ALTER TABLE families ADD COLUMN default_variation TEXT;
   `
 ]
 

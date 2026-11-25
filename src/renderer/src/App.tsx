@@ -3,7 +3,7 @@ import type { CollectionSummary, FamilySummary, ImportResult, MenuItem, Settings
 import { Sidebar, type View } from './components/Sidebar'
 import { Toolbar, type Layout, type SelectionAction } from './components/Toolbar'
 import { FamilyGrid, FamilyRows } from './components/FamilyGrid'
-import { MergeDialog, PromptDialog, TagDialog } from './components/Dialogs'
+import { AddDialog, MergeDialog, PromptDialog, TagDialog } from './components/Dialogs'
 import { FamilyPage } from './components/FamilyPage'
 import { systemTheme, useApplyTheme, type Theme } from './theme'
 
@@ -16,6 +16,7 @@ type Dialog =
   | { kind: 'prompt'; props: Omit<React.ComponentProps<typeof PromptDialog>, 'onCancel'> }
   | { kind: 'tags'; title: string; familyIds: number[]; mode: 'set' | 'add'; initial: string[]; allTags: string[] }
   | { kind: 'merge'; familyIds: number[] }
+  | { kind: 'add' }
 
 function summarize(r: ImportResult): string {
   const parts: string[] = []
@@ -427,7 +428,7 @@ function Library({ initial }: { initial: Settings }) {
         collections={collections}
         status={status}
         busy={busy}
-        onAdd={() => runImport(() => api.library.importWithPicker())}
+        onAdd={() => setDialog({ kind: 'add' })}
         onNewCollection={() => newCollection()}
         onCollectionMenu={collectionMenu}
         onCategoryMenu={categoryMenu}
@@ -541,6 +542,21 @@ function Library({ initial }: { initial: Settings }) {
                 ? api.organize.setFamilyTags(familyIds[0], tags)
                 : api.organize.addTags(familyIds, tags)
             )
+          }}
+        />
+      )}
+      {dialog?.kind === 'add' && (
+        <AddDialog
+          onCancel={() => setDialog(null)}
+          onChooseFiles={() => {
+            setDialog(null)
+            runImport(() => api.library.importWithPicker())
+          }}
+          onAdded={async (id, name) => {
+            setDialog(null)
+            await refresh()
+            showStatus(`Added ${name} from Google Fonts`)
+            setOpenFamily(id)
           }}
         />
       )}

@@ -30,6 +30,32 @@ export interface StyleSummary {
   assetId: number | null
   /** The family name the font file itself declares; differs from the family after a merge. */
   originFamily?: string
+  /** For styles with no local file (Google Fonts): where the browser loads the face from. */
+  remote?: RemoteFace
+}
+
+/** A face loaded by the browser from a web font stylesheet (Google CSS2). */
+export interface RemoteFace {
+  cssUrl: string
+  /** The CSS font-family name the stylesheet declares. */
+  family: string
+  weight: number
+  italic: boolean
+}
+
+/** Axis values, by tag, for a variable font. */
+export type Variation = Record<string, number>
+
+export interface GooglePreview {
+  family: string
+  designer: string | null
+  category: string | null
+  license: string | null
+  styleCount: number
+  axes: string[]
+  cssUrl: string
+  /** Set when a family with this name is already in the library (the Google source attaches to it). */
+  existingFamilyId: number | null
 }
 
 export interface FamilySummary {
@@ -42,8 +68,10 @@ export interface FamilySummary {
   sources: SourceType[]
   isVariable: boolean
   styles: StyleSummary[]
-  /** The style used for previews by default (closest to Regular). */
+  /** The style used for previews: the one the user saved, else the closest to Regular. */
   defaultStyleId: number | null
+  /** Saved axis values for the default style (variable fonts), or null. */
+  defaultVariation: Variation | null
   createdAt: string
 }
 
@@ -91,6 +119,9 @@ export interface FamilyDetail {
   sources: SourceDetail[]
   styles: StyleDetail[]
   defaultStyleId: number | null
+  defaultVariation: Variation | null
+  /** True when the user saved the default (rather than it being picked automatically). */
+  hasSavedDefault: boolean
   createdAt: string
   updatedAt: string
 }
@@ -169,6 +200,8 @@ export interface FontLibApi {
     /** Moves a style into another family (by id) or into a new family (by name). Returns the target family id. */
     moveStyle(styleId: number, target: { familyId: number } | { newName: string }): Promise<number>
     revealAsset(assetId: number): Promise<void>
+    /** Saves the style (and axis values, for variable fonts) used for this family's previews. */
+    setDefaultStyle(familyId: number, styleId: number, variation: Variation | null): Promise<void>
   }
   organize: {
     tags(): Promise<TagSummary[]>
@@ -188,6 +221,12 @@ export interface FontLibApi {
     removeFamilies(familyIds: number[]): Promise<boolean>
     /** Merges families into targetId; newName (if given) renames the result. */
     merge(familyIds: number[], targetId: number, newName: string | null): Promise<void>
+  }
+  google: {
+    /** Reads a family's metadata from the google/fonts repo, for the Add dialog's preview. */
+    lookup(url: string): Promise<GooglePreview>
+    /** Adds the family (or attaches it to an existing one). Resolves with the family id. */
+    add(url: string): Promise<number>
   }
   ui: {
     /** Shows a native context menu at the cursor; resolves with the chosen item id, or null. */
@@ -212,6 +251,9 @@ export const IPC = {
   removeSourceLink: 'library:remove-source-link',
   moveStyle: 'library:move-style',
   revealAsset: 'library:reveal-asset',
+  setDefaultStyle: 'library:set-default-style',
+  googleLookup: 'google:lookup',
+  googleAdd: 'google:add',
   tags: 'organize:tags',
   setFamilyTags: 'organize:set-family-tags',
   setCategory: 'organize:set-category',

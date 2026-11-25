@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { FamilyDetail, FamilyPatch, FamilySummary, MenuItem, SourceType, StyleDetail } from '@shared/api'
 import { DEFAULT_ON, featureName, featureSettings, userFeatures } from '../features'
+import { variationCss } from '../fonts'
 import type { Theme } from '../theme'
 import { SOURCE_LABEL } from './FamilyGrid'
 import { Specimen } from './Specimen'
@@ -124,10 +125,12 @@ export function FamilyPage(p: Props) {
 
   const style = family?.styles.find((s) => s.id === styleId) ?? family?.styles[0]
 
-  // Axes and features reset to the style's defaults when the style changes.
+  // Axes and features reset when the style changes: to the saved default's axis values for the
+  // family's default style, otherwise to the font's own defaults.
   useEffect(() => {
     if (!style) return
-    setAxes(Object.fromEntries(style.axes.map((a) => [a.tag, a.default])))
+    const saved = family?.defaultStyleId === style.id ? (family?.defaultVariation ?? {}) : {}
+    setAxes(Object.fromEntries(style.axes.map((a) => [a.tag, saved[a.tag] ?? a.default])))
     setFeatureState(Object.fromEntries(userFeatures(style.features).map((t) => [t, DEFAULT_ON.has(t)])))
   }, [style?.id])
 
@@ -147,15 +150,36 @@ export function FamilyPage(p: Props) {
 
   // Merged families group their styles by the family each font file declares.
   // The family's own name comes first, the rest alphabetically.
+  // The default style leads the list (and its group leads when grouped).
+  const ordered = [...family.styles].sort((a, b) =>
+    a.id === family.defaultStyleId ? -1 : b.id === family.defaultStyleId ? 1 : 0
+  )
   const groups: { name: string; styles: StyleDetail[] }[] = []
-  for (const s of family.styles) {
+  for (const s of ordered) {
     const name = s.originFamily || family.name
     const g = groups.find((x) => x.name === name)
     if (g) g.styles.push(s)
     else groups.push({ name, styles: [s] })
   }
-  groups.sort((a, b) => (a.name === family.name ? -1 : b.name === family.name ? 1 : a.name.localeCompare(b.name)))
+  const rank = (g: { name: string; styles: StyleDetail[] }): number =>
+    g.styles.some((s) => s.id === family.defaultStyleId) ? 0 : g.name === family.name ? 1 : 2
+  groups.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
   const grouped = groups.length > 1
+
+  // "Set as Default" is done once the current style and axis values match what's saved.
+  const savedAxes = family.defaultVariation ?? {}
+  const isDefault =
+    family.hasSavedDefault &&
+    style.id === family.defaultStyleId &&
+    style.axes.every((a) => (savedAxes[a.tag] ?? a.default) === (axes[a.tag] ?? a.default))
+  const saveDefault = (): Promise<void> =>
+    p.act(() =>
+      api.library.setDefaultStyle(
+        family.id,
+        style.id,
+        style.axes.length ? Object.fromEntries(style.axes.map((a) => [a.tag, axes[a.tag] ?? a.default])) : null
+      )
+    )
 
   const styleMenu = async (s: StyleDetail): Promise<void> => {
     const others = p.families.filter((f) => f.id !== family.id)
@@ -227,6 +251,7 @@ export function FamilyPage(p: Props) {
 
       {(family.styles.length > 1 || style.axes.length > 0) && (
         <div className="style-bar">
+          <div className="style-bar-main">
           {family.styles.length > 1 && (
             <select
               className="field style-select"
@@ -253,6 +278,17 @@ export function FamilyPage(p: Props) {
               )}
             </select>
           )}
+            <button
+              className={'bar-button default-button' + (isDefault ? ' is-default' : '')}
+              onClick={saveDefault}
+              disabled={isDefault}
+              title="Use this style (and these axis values) in the library grid and when this page opens"
+            >
+              {isDefault ? '✓ Default' : 'Set as Default'}
+            </button>
+          </div>
+          {style.axes.length > 0 && (
+          <div className="style-bar-axes">
           {style.axes.map((a) => (
             <label key={a.tag} className="axis" title="Double-click to reset">
               <span className="axis-head">
@@ -271,6 +307,8 @@ export function FamilyPage(p: Props) {
               />
             </label>
           ))}
+          </div>
+          )}
         </div>
       )}
 
@@ -320,7 +358,12 @@ export function FamilyPage(p: Props) {
                 }}
               >
                 <div className="style-meta">
-                  <div className="cell-name">{s.styleName}</div>
+                  <div className="cell-name">
+                    {s.styleName}
+                    {family.hasSavedDefault && s.id === family.defaultStyleId && (
+                      <span className="mark style-default-mark">Default</span>
+                    )}
+                  </div>
                   <div className="cell-sub">
                     {s.isVariable
                       ? `Variable · ${s.axes.map((a) => a.tag).join(' ')}`
@@ -328,7 +371,13 @@ export function FamilyPage(p: Props) {
                   </div>
                   <div className="cell-sub style-ps">{s.postscriptName}</div>
                 </div>
-                <Specimen className="style-specimen" style={s} text={text} size={Math.min(size, 40)} />
+                <Specimen
+                  className="style-specimen"
+                  style={s}
+                  text={text}
+                  size={Math.min(size, 40)}
+                  variation={s.id === family.defaultStyleId ? variationCss(family.defaultVariation) : undefined}
+                />
                 <button
                   className="cell-action"
                   aria-label={`Actions for ${s.styleName}`}

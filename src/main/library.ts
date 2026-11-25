@@ -7,7 +7,8 @@ import type {
   SourceDetail,
   SourceType,
   StyleDetail,
-  StyleSummary
+  StyleSummary,
+  Variation
 } from '@shared/api'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -32,14 +33,20 @@ interface StyleRow {
 /** Picks the style closest to Regular: upright, weight nearest 400, normal width. */
 function defaultStyle(styles: StyleSummary[]): StyleSummary | undefined {
   const score = (s: StyleSummary): number =>
-    (s.italic ? 10000 : 0) + Math.abs(s.weight - 400) + Math.abs(s.width - 5) * 50 + (s.assetId === null ? 100000 : 0)
+    (s.italic ? 10000 : 0) +
+    Math.abs(s.weight - 400) +
+    Math.abs(s.width - 5) * 50 +
+    (s.assetId === null && !s.remote ? 100000 : 0)
   return [...styles].sort((a, b) => score(a) - score(b))[0]
 }
 
 export function listFamilies(): FamilySummary[] {
   const db = getDb()
   const families = db
-    .prepare('SELECT id, name, designer, foundry, category, created_at FROM families ORDER BY name COLLATE NOCASE')
+    .prepare(
+      `SELECT id, name, designer, foundry, category, created_at, default_style_id, default_variation
+       FROM families ORDER BY name COLLATE NOCASE`
+    )
     .all() as {
     id: number
     name: string
@@ -47,18 +54,33 @@ export function listFamilies(): FamilySummary[] {
     foundry: string | null
     category: string | null
     created_at: string
+    default_style_id: number | null
+    default_variation: string | null
   }[]
 
   const styleRows = db
     .prepare(
       `SELECT s.id, s.family_id, s.postscript_name, s.style_name, s.weight, s.italic, s.width, s.is_variable, s.axes,
               s.origin_family,
-              (SELECT a.id FROM assets a WHERE a.style_id = s.id AND a.missing = 0
-               ORDER BY CASE a.storage WHEN 'stored' THEN 0 WHEN 'system-path' THEN 1 ELSE 2 END LIMIT 1) AS asset_id
+              (SELECT a.id FROM assets a WHERE a.style_id = s.id AND a.missing = 0 AND a.storage != 'remote'
+               ORDER BY CASE a.storage WHEN 'stored' THEN 0 ELSE 1 END LIMIT 1) AS asset_id
        FROM styles s
        ORDER BY s.italic, s.width, s.weight`
     )
     .all() as StyleRow[]
+
+  // Web-hosted faces (Google): the stylesheet URL is the asset path; the CSS family name is on the source.
+  const remoteRows = db
+    .prepare(
+      `SELECT a.style_id, a.path, src.meta FROM assets a JOIN sources src ON src.id = a.source_id
+       WHERE a.storage = 'remote'`
+    )
+    .all() as { style_id: number; path: string; meta: string }[]
+  const remoteByStyle = new Map<number, { cssUrl: string; family: string }>()
+  for (const r of remoteRows) {
+    const family = (JSON.parse(r.meta) as { family?: string }).family
+    if (family && !remoteByStyle.has(r.style_id)) remoteByStyle.set(r.style_id, { cssUrl: r.path, family })
+  }
 
   const sourceRows = db.prepare('SELECT DISTINCT family_id, type FROM sources').all() as {
     family_id: number
@@ -86,7 +108,10 @@ export function listFamilies(): FamilySummary[] {
       isVariable: r.is_variable === 1,
       axes: JSON.parse(r.axes) as Axis[],
       assetId: r.asset_id,
-      originFamily: r.origin_family ?? undefined
+      originFamily: r.origin_family ?? undefined,
+      remote: remoteByStyle.has(r.id)
+        ? { ...remoteByStyle.get(r.id)!, weight: r.weight, italic: r.italic === 1 }
+        : undefined
     })
     stylesByFamily.set(r.family_id, list)
   }
@@ -100,6 +125,7 @@ export function listFamilies(): FamilySummary[] {
 
   return families.map((f) => {
     const styles = stylesByFamily.get(f.id) ?? []
+    const saved = f.default_style_id !== null && styles.some((s) => s.id === f.default_style_id)
     return {
       id: f.id,
       name: f.name,
@@ -110,7 +136,8 @@ export function listFamilies(): FamilySummary[] {
       sources: sourcesByFamily.get(f.id) ?? [],
       isVariable: styles.some((s) => s.isVariable),
       styles,
-      defaultStyleId: defaultStyle(styles)?.id ?? null,
+      defaultStyleId: saved ? f.default_style_id : (defaultStyle(styles)?.id ?? null),
+      defaultVariation: saved && f.default_variation ? (JSON.parse(f.default_variation) as Variation) : null,
       createdAt: f.created_at
     }
   })
@@ -151,6 +178,7 @@ export function getFamily(familyId: number): FamilyDetail | null {
         license_url: string | null
         created_at: string
         updated_at: string
+        default_style_id: number | null
       }
     | undefined
   if (!f) return null
@@ -253,6 +281,8 @@ export function getFamily(familyId: number): FamilyDetail | null {
     sources,
     styles,
     defaultStyleId: summary.defaultStyleId,
+    defaultVariation: summary.defaultVariation,
+    hasSavedDefault: f.default_style_id !== null && f.default_style_id === summary.defaultStyleId,
     createdAt: f.created_at,
     updatedAt: f.updated_at
   }

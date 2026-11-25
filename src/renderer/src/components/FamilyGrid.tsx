@@ -1,6 +1,7 @@
 import type { DragEvent, MouseEvent } from 'react'
 import type { FamilySummary, SourceType } from '@shared/api'
 import { FAMILY_DRAG_TYPE } from './Sidebar'
+import { variationCss } from '../fonts'
 import { Specimen } from './Specimen'
 
 export const SOURCE_LABEL: Record<SourceType, string> = {
@@ -109,6 +110,7 @@ export function FamilyGrid(p: Props) {
           <Specimen
             className="grid-specimen"
             style={f.styles.find((s) => s.id === f.defaultStyleId)}
+            variation={variationCss(f.defaultVariation)}
             text={text}
             size={size}
           />
@@ -153,6 +155,7 @@ export function FamilyRows(p: Props) {
           <Specimen
             className="row-specimen"
             style={f.styles.find((s) => s.id === f.defaultStyleId)}
+            variation={variationCss(f.defaultVariation)}
             text={text}
             size={size}
           />
