@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
+    "@types/fontkit": "^2.0.9",
     "@types/node": "^26.6.10",
     "@types/react": "^19.3.3",
     "@types/react-dom": "^19.3.0",
