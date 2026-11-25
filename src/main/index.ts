@@ -1,9 +1,10 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from 'electron'
 import { join } from 'node:path'
-import { IPC, type AppInfo, type Settings } from '@shared/api'
+import { IPC, type AppInfo, type MenuItem, type Settings } from '@shared/api'
 import { getDb } from './db'
 import { importPaths } from './importer'
 import { getSettings, listFamilies, setSettings } from './library'
+import * as organize from './organize'
 import { libraryPath } from './paths'
 import { handleProtocol, registerSchemePrivileges } from './protocol'
 
@@ -47,6 +48,40 @@ function createWindow(): void {
   }
 }
 
+async function confirm(
+  sender: Electron.WebContents,
+  message: string,
+  detail: string,
+  action: string
+): Promise<boolean> {
+  const win = BrowserWindow.fromWebContents(sender)
+  const opts: Electron.MessageBoxOptions = {
+    type: 'warning',
+    message,
+    detail,
+    buttons: [action, 'Cancel'],
+    defaultId: 1,
+    cancelId: 1
+  }
+  const res = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts)
+  return res.response === 0
+}
+
+function familyName(id: number): string {
+  return (getDb().prepare('SELECT name FROM families WHERE id = ?').get(id) as { name: string } | undefined)?.name ?? 'this family'
+}
+
+function toMenuTemplate(items: MenuItem[], pick: (id: string) => void): MenuItemConstructorOptions[] {
+  return items.map((item) => ({
+    label: item.label,
+    type: item.submenu ? 'submenu' : (item.type ?? 'normal'),
+    checked: item.checked,
+    enabled: item.enabled ?? true,
+    submenu: item.submenu ? toMenuTemplate(item.submenu, pick) : undefined,
+    click: item.id ? () => pick(item.id!) : undefined
+  }))
+}
+
 function registerIpc(): void {
   ipcMain.handle(
     IPC.appInfo,
@@ -74,6 +109,49 @@ function registerIpc(): void {
     }
     return importPaths(paths)
   })
+
+  ipcMain.handle(IPC.removeFamily, async (event, id: number) => {
+    const ok = await confirm(
+      event.sender,
+      `Remove “${familyName(id)}” from your library?`,
+      'Its stored font files are deleted from the library folder. Fonts installed on your system are not affected.',
+      'Remove'
+    )
+    if (ok) organize.removeFamily(id)
+    return ok
+  })
+  ipcMain.handle(IPC.revealFamily, (_e, id: number) => {
+    const path = organize.familyFilePath(id)
+    if (path) shell.showItemInFolder(path)
+  })
+
+  ipcMain.handle(IPC.tags, () => organize.listTags())
+  ipcMain.handle(IPC.setFamilyTags, (_e, id: number, tags: unknown) => organize.setFamilyTags(id, tags))
+  ipcMain.handle(IPC.setCategory, (_e, ids: unknown, category: unknown) => organize.setCategory(ids, category))
+  ipcMain.handle(IPC.renameCategory, (_e, from: unknown, to: unknown) => organize.renameCategory(from, to))
+  ipcMain.handle(IPC.collections, () => organize.listCollections())
+  ipcMain.handle(IPC.createCollection, (_e, name: unknown, kind: unknown) => organize.createCollection(name, kind))
+  ipcMain.handle(IPC.renameCollection, (_e, id: number, name: unknown) => organize.renameCollection(id, name))
+  ipcMain.handle(IPC.setCollectionKind, (_e, id: number, kind: unknown) => organize.setCollectionKind(id, kind))
+  ipcMain.handle(IPC.deleteCollection, async (event, id: number) => {
+    const ok = await confirm(event.sender, 'Delete this collection?', 'The fonts in it stay in your library.', 'Delete')
+    if (ok) organize.deleteCollection(id)
+    return ok
+  })
+  ipcMain.handle(IPC.addToCollection, (_e, id: number, ids: unknown) => organize.addToCollection(id, ids))
+  ipcMain.handle(IPC.removeFromCollection, (_e, id: number, ids: unknown) => organize.removeFromCollection(id, ids))
+
+  ipcMain.handle(
+    IPC.contextMenu,
+    (event, items: MenuItem[]) =>
+      new Promise<string | null>((resolvePick) => {
+        let picked: string | null = null
+        const menu = Menu.buildFromTemplate(toMenuTemplate(items, (id) => (picked = id)))
+        const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
+        // 'callback' fires on close; click handlers run before it.
+        menu.popup({ window: win, callback: () => setTimeout(() => resolvePick(picked), 0) })
+      })
+  )
 
   ipcMain.handle(IPC.settingsGet, () => getSettings())
   ipcMain.handle(IPC.settingsSet, (_event, patch: Settings) => setSettings(patch ?? {}))

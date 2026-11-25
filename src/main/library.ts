@@ -49,6 +49,14 @@ export function listFamilies(): FamilySummary[] {
     type: SourceType
   }[]
 
+  const tagRows = db
+    .prepare(
+      'SELECT ft.family_id, t.name FROM family_tags ft JOIN tags t ON t.id = ft.tag_id ORDER BY t.name COLLATE NOCASE'
+    )
+    .all() as { family_id: number; name: string }[]
+  const tagsByFamily = new Map<number, string[]>()
+  for (const r of tagRows) tagsByFamily.set(r.family_id, [...(tagsByFamily.get(r.family_id) ?? []), r.name])
+
   const stylesByFamily = new Map<number, StyleSummary[]>()
   for (const r of styleRows) {
     const list = stylesByFamily.get(r.family_id) ?? []
@@ -81,6 +89,7 @@ export function listFamilies(): FamilySummary[] {
       designer: f.designer,
       foundry: f.foundry,
       category: f.category,
+      tags: tagsByFamily.get(f.id) ?? [],
       sources: sourcesByFamily.get(f.id) ?? [],
       isVariable: styles.some((s) => s.isVariable),
       styles,

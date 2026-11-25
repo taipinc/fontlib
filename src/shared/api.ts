@@ -36,6 +36,7 @@ export interface FamilySummary {
   designer: string | null
   foundry: string | null
   category: string | null
+  tags: string[]
   sources: SourceType[]
   isVariable: boolean
   styles: StyleSummary[]
@@ -50,6 +51,32 @@ export interface ImportResult {
   stylesAdded: number
   skippedDuplicates: number
   errors: { file: string; message: string }[]
+}
+
+export interface TagSummary {
+  id: number
+  name: string
+  count: number
+}
+
+export type CollectionKind = 'plain' | 'project'
+
+export interface CollectionSummary {
+  id: number
+  name: string
+  kind: CollectionKind
+  /** Families in the collection, in collection order. */
+  familyIds: number[]
+}
+
+/** A native context menu, described from the renderer and shown by main. */
+export interface MenuItem {
+  id?: string
+  label?: string
+  type?: 'normal' | 'separator' | 'checkbox'
+  checked?: boolean
+  enabled?: boolean
+  submenu?: MenuItem[]
 }
 
 export type Settings = Partial<{
@@ -69,6 +96,27 @@ export interface FontLibApi {
     importWithPicker(): Promise<ImportResult | null>
     /** Imports files dropped onto the window. */
     importFiles(files: File[]): Promise<ImportResult>
+    /** Asks for confirmation, then removes the family. Resolves true if removed. */
+    removeFamily(familyId: number): Promise<boolean>
+    revealFamily(familyId: number): Promise<void>
+  }
+  organize: {
+    tags(): Promise<TagSummary[]>
+    setFamilyTags(familyId: number, tags: string[]): Promise<void>
+    setCategory(familyIds: number[], category: string | null): Promise<void>
+    renameCategory(from: string, to: string | null): Promise<void>
+    collections(): Promise<CollectionSummary[]>
+    createCollection(name: string, kind: CollectionKind): Promise<number>
+    renameCollection(id: number, name: string): Promise<void>
+    setCollectionKind(id: number, kind: CollectionKind): Promise<void>
+    /** Asks for confirmation, then deletes the collection (not its fonts). */
+    deleteCollection(id: number): Promise<boolean>
+    addToCollection(id: number, familyIds: number[]): Promise<void>
+    removeFromCollection(id: number, familyIds: number[]): Promise<void>
+  }
+  ui: {
+    /** Shows a native context menu at the cursor; resolves with the chosen item id, or null. */
+    contextMenu(items: MenuItem[]): Promise<string | null>
   }
   settings: {
     get(): Promise<Settings>
@@ -81,6 +129,20 @@ export const IPC = {
   families: 'library:families',
   importWithPicker: 'library:import-picker',
   importPaths: 'library:import-paths',
+  removeFamily: 'library:remove-family',
+  revealFamily: 'library:reveal-family',
+  tags: 'organize:tags',
+  setFamilyTags: 'organize:set-family-tags',
+  setCategory: 'organize:set-category',
+  renameCategory: 'organize:rename-category',
+  collections: 'organize:collections',
+  createCollection: 'organize:create-collection',
+  renameCollection: 'organize:rename-collection',
+  setCollectionKind: 'organize:set-collection-kind',
+  deleteCollection: 'organize:delete-collection',
+  addToCollection: 'organize:add-to-collection',
+  removeFromCollection: 'organize:remove-from-collection',
+  contextMenu: 'ui:context-menu',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set'
 } as const

@@ -12,7 +12,25 @@ const api: FontLibApi = {
       ipcRenderer.invoke(
         IPC.importPaths,
         files.map((f) => webUtils.getPathForFile(f)).filter(Boolean)
-      )
+      ),
+    removeFamily: (id) => ipcRenderer.invoke(IPC.removeFamily, id),
+    revealFamily: (id) => ipcRenderer.invoke(IPC.revealFamily, id)
+  },
+  organize: {
+    tags: () => ipcRenderer.invoke(IPC.tags),
+    setFamilyTags: (id, tags) => ipcRenderer.invoke(IPC.setFamilyTags, id, tags),
+    setCategory: (ids, category) => ipcRenderer.invoke(IPC.setCategory, ids, category),
+    renameCategory: (from, to) => ipcRenderer.invoke(IPC.renameCategory, from, to),
+    collections: () => ipcRenderer.invoke(IPC.collections),
+    createCollection: (name, kind) => ipcRenderer.invoke(IPC.createCollection, name, kind),
+    renameCollection: (id, name) => ipcRenderer.invoke(IPC.renameCollection, id, name),
+    setCollectionKind: (id, kind) => ipcRenderer.invoke(IPC.setCollectionKind, id, kind),
+    deleteCollection: (id) => ipcRenderer.invoke(IPC.deleteCollection, id),
+    addToCollection: (id, ids) => ipcRenderer.invoke(IPC.addToCollection, id, ids),
+    removeFromCollection: (id, ids) => ipcRenderer.invoke(IPC.removeFromCollection, id, ids)
+  },
+  ui: {
+    contextMenu: (items) => ipcRenderer.invoke(IPC.contextMenu, items)
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC.settingsGet),
