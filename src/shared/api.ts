@@ -58,6 +58,40 @@ export interface GooglePreview {
   existingFamilyId: number | null
 }
 
+export interface GitHubFile {
+  /** Opaque id passed back to import: rel:<asset>, zip:<asset>:<entry> or tree:<path>. */
+  id: string
+  path: string
+  name: string
+  size: number
+  /** Folder (or "release zip / folder") the file is listed under. */
+  group: string
+}
+
+export interface GitHubPreview {
+  url: string
+  owner: string
+  repo: string
+  description: string | null
+  license: string | null
+  licenseUrl: string | null
+  defaultBranch: string
+  commit: string
+  release: { tag: string; name: string; url: string } | null
+  /** Fonts attached to the latest release, including those inside release zips. */
+  releaseFiles: GitHubFile[]
+  /** Fonts on the default branch. */
+  branchFiles: GitHubFile[]
+  /** GitHub cut the file listing short (very large repo). */
+  truncated: boolean
+  /** Release archives that were too large or unreadable to list. */
+  skippedArchives: string[]
+}
+
+export interface GitHubImportResult extends ImportResult {
+  familyIds: number[]
+}
+
 export interface FamilySummary {
   id: number
   name: string
@@ -228,6 +262,12 @@ export interface FontLibApi {
     /** Adds the family (or attaches it to an existing one). Resolves with the family id. */
     add(url: string): Promise<number>
   }
+  github: {
+    /** Lists font files in the repo's latest release and default branch. */
+    lookup(url: string): Promise<GitHubPreview>
+    /** Downloads the chosen files (by GitHubFile id) and imports them. */
+    import(url: string, fileIds: string[]): Promise<GitHubImportResult>
+  }
   ui: {
     /** Shows a native context menu at the cursor; resolves with the chosen item id, or null. */
     contextMenu(items: MenuItem[]): Promise<string | null>
@@ -254,6 +294,8 @@ export const IPC = {
   setDefaultStyle: 'library:set-default-style',
   googleLookup: 'google:lookup',
   googleAdd: 'google:add',
+  githubLookup: 'github:lookup',
+  githubImport: 'github:import',
   tags: 'organize:tags',
   setFamilyTags: 'organize:set-family-tags',
   setCategory: 'organize:set-category',

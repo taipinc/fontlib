@@ -552,6 +552,13 @@ function Library({ initial }: { initial: Settings }) {
             setDialog(null)
             runImport(() => api.library.importWithPicker())
           }}
+          onImported={async (result, repo) => {
+            setDialog(null)
+            if (result.errors.length) console.warn('Import errors', result.errors)
+            await refresh()
+            showStatus(`${repo}: ${summarize(result)}`)
+            if (result.familyIds.length === 1) setOpenFamily(result.familyIds[0])
+          }}
           onAdded={async (id, name) => {
             setDialog(null)
             await refresh()

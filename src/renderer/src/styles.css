@@ -1318,3 +1318,120 @@ label {
   min-width: 104px;
   height: 28px;
 }
+
+/* GitHub picker */
+
+.modal:has(.add-dialog.is-wide) {
+  width: 620px;
+}
+
+.gh {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gh-title {
+  font-weight: 600;
+}
+
+.gh-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gh-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gh-bar .segmented button:disabled {
+  color: var(--text-faint);
+}
+
+.gh-filter {
+  flex: 1;
+  min-width: 0;
+}
+
+.gh-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.gh-empty {
+  padding: 12px;
+}
+
+.gh-group + .gh-group {
+  border-top: 1px solid var(--border);
+}
+
+.gh-group-row,
+.gh-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  min-height: 30px;
+}
+
+.gh-group-row input,
+.gh-file input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.gh-group-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.gh-group-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.gh-file {
+  padding-left: 46px;
+  min-height: 26px;
+}
+
+.gh-file:hover,
+.gh-group-row:hover {
+  background: var(--bg-hover);
+}
+
+.gh-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.gh-actions {
+  align-items: center;
+  margin-top: 4px;
+}
+
+.gh-count {
+  flex: 1;
+}

@@ -24,6 +24,10 @@ const api: FontLibApi = {
     setDefaultStyle: (familyId, styleId, variation) =>
       ipcRenderer.invoke(IPC.setDefaultStyle, familyId, styleId, variation)
   },
+  github: {
+    lookup: (url) => ipcRenderer.invoke(IPC.githubLookup, url),
+    import: (url, ids) => ipcRenderer.invoke(IPC.githubImport, url, ids)
+  },
   google: {
     lookup: (url) => ipcRenderer.invoke(IPC.googleLookup, url),
     add: (url) => ipcRenderer.invoke(IPC.googleAdd, url)

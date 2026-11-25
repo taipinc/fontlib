@@ -10,7 +10,7 @@ import { parseFontBuffer, type ParsedStyle } from './parse'
 const FONT_EXTS = new Set(['.ttf', '.otf', '.ttc', '.otc', '.woff', '.woff2'])
 const MAX_FONT_BYTES = 100 * 1024 * 1024
 
-interface Input {
+export interface Input {
   /** Where it came from, for error messages. */
   origin: string
   filename: string
@@ -109,20 +109,49 @@ function assetKind(filename: string): string {
   return ext === 'otc' ? 'ttc' : ext
 }
 
+/** Where imported files came from. Files from GitHub record the repo and the tag or commit. */
+export type SourceSpec =
+  | { type: 'file' }
+  | {
+      type: 'github'
+      /** Canonical repo URL, also the identity of the source within a family. */
+      url: string
+      ref: string
+      meta: Record<string, unknown>
+      /** Fills the family's license when the font doesn't declare one. */
+      license?: string | null
+      licenseUrl?: string | null
+    }
+
+export interface ImportOutcome extends ImportResult {
+  /** Families that received styles or sources in this import. */
+  familyIds: number[]
+}
+
 export async function importPaths(paths: string[]): Promise<ImportResult> {
-  const result: ImportResult = {
+  const errors: ImportResult['errors'] = []
+  const inputs: Input[] = []
+  for (const p of paths) await collect(p, inputs, errors)
+  const outcome = importInputs(inputs, { type: 'file' })
+  outcome.errors.unshift(...errors)
+  return outcome
+}
+
+/** Parses, dedupes and stores font buffers, attributing them to one source. */
+export function importInputs(inputs: Input[], spec: SourceSpec): ImportOutcome {
+  const result: ImportOutcome = {
     familiesAdded: 0,
     familiesUpdated: 0,
     stylesAdded: 0,
     skippedDuplicates: 0,
-    errors: []
+    errors: [],
+    familyIds: []
   }
-  const inputs: Input[] = []
-  for (const p of paths) await collect(p, inputs, result.errors)
 
   const db = getDb()
   const added = new Set<number>()
   const updated = new Set<number>()
+  const touched = new Set<number>()
 
   const q = {
     assetBySha: db.prepare('SELECT 1 FROM assets WHERE sha1 = ? LIMIT 1'),
@@ -138,6 +167,14 @@ export async function importPaths(paths: string[]): Promise<ImportResult> {
       WHERE id = ?`),
     fileSource: db.prepare("SELECT id FROM sources WHERE family_id = ? AND type = 'file' LIMIT 1"),
     insertSource: db.prepare("INSERT INTO sources (family_id, type, version) VALUES (?, 'file', ?)"),
+    githubSource: db.prepare("SELECT id FROM sources WHERE family_id = ? AND type = 'github' AND url = ?"),
+    updateGithub: db.prepare(
+      "UPDATE sources SET ref = ?, version = ?, meta = ?, last_checked = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?"
+    ),
+    insertGithub: db.prepare(
+      `INSERT INTO sources (family_id, type, url, repo_url, ref, version, meta, last_checked)
+       VALUES (?, 'github', ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))`
+    ),
     styleByPs: db.prepare('SELECT id FROM styles WHERE family_id = ? AND postscript_name = ?'),
     styleHasStored: db.prepare("SELECT 1 FROM assets WHERE style_id = ? AND storage = 'stored' LIMIT 1"),
     insertStyle: db.prepare(`
@@ -175,14 +212,16 @@ export async function importPaths(paths: string[]): Promise<ImportResult> {
         let storedPath: string | null = null
 
         for (const s of styles) {
+          const license = s.license ?? (spec.type === 'github' ? (spec.license ?? null) : null)
+          const licenseUrl = s.licenseUrl ?? (spec.type === 'github' ? (spec.licenseUrl ?? null) : null)
           let familyId = (q.familyByName.get(s.familyName) as { id: number } | undefined)?.id
           if (familyId === undefined) {
             familyId = Number(
-              q.insertFamily.run(s.familyName, s.designer, s.foundry, s.license, s.licenseUrl).lastInsertRowid
+              q.insertFamily.run(s.familyName, s.designer, s.foundry, license, licenseUrl).lastInsertRowid
             )
             added.add(familyId)
           } else {
-            q.fillFamily.run(s.designer, s.foundry, s.license, s.licenseUrl, familyId)
+            q.fillFamily.run(s.designer, s.foundry, license, licenseUrl, familyId)
             if (!added.has(familyId)) updated.add(familyId)
           }
 
@@ -192,9 +231,25 @@ export async function importPaths(paths: string[]): Promise<ImportResult> {
             continue
           }
 
-          const sourceId =
-            (q.fileSource.get(familyId) as { id: number } | undefined)?.id ??
-            Number(q.insertSource.run(familyId, s.version).lastInsertRowid)
+          let sourceId: number
+          if (spec.type === 'file') {
+            sourceId =
+              (q.fileSource.get(familyId) as { id: number } | undefined)?.id ??
+              Number(q.insertSource.run(familyId, s.version).lastInsertRowid)
+          } else {
+            // One GitHub source per repo per family; a hand-added reference link becomes the real source.
+            const meta = JSON.stringify(spec.meta)
+            const existing = q.githubSource.get(familyId, spec.url) as { id: number } | undefined
+            if (existing) {
+              q.updateGithub.run(spec.ref, s.version, meta, existing.id)
+              sourceId = existing.id
+            } else {
+              sourceId = Number(
+                q.insertGithub.run(familyId, spec.url, spec.url, spec.ref, s.version, meta).lastInsertRowid
+              )
+            }
+          }
+          touched.add(familyId)
 
           const styleId =
             existingStyle?.id ??
@@ -237,5 +292,6 @@ export async function importPaths(paths: string[]): Promise<ImportResult> {
 
   result.familiesAdded = added.size
   result.familiesUpdated = [...updated].filter((id) => !added.has(id)).length
+  result.familyIds = [...touched]
   return result
 }

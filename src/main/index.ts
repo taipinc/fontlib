@@ -4,6 +4,7 @@ import { IPC, type AppInfo, type MenuItem, type Settings } from '@shared/api'
 import { getDb } from './db'
 import { importPaths } from './importer'
 import { backfillOriginFamilies, getFamily, getSettings, listFamilies, setSettings } from './library'
+import { importGitHub, lookupGitHub } from './github'
 import { addGoogleFamily, lookupGoogle } from './google'
 import * as organize from './organize'
 import { libraryPath } from './paths'
@@ -146,6 +147,15 @@ function registerIpc(): void {
   ipcMain.handle(IPC.googleAdd, async (_e, url: unknown) => {
     if (typeof url !== 'string') throw new Error('Invalid link')
     return (await addGoogleFamily(url)).familyId
+  })
+
+  ipcMain.handle(IPC.githubLookup, async (_e, url: unknown) => {
+    if (typeof url !== 'string') throw new Error('Invalid link')
+    return (await lookupGitHub(url)).preview
+  })
+  ipcMain.handle(IPC.githubImport, (_e, url: unknown, ids: unknown) => {
+    if (typeof url !== 'string') throw new Error('Invalid link')
+    return importGitHub(url, ids)
   })
 
   ipcMain.handle(IPC.tags, () => organize.listTags())
