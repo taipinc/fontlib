@@ -165,3 +165,120 @@ export function removeFamily(familyId: number): void {
     }
   }
 }
+
+// Batch operations
+
+/** Adds tags to each family, keeping the tags they already have. */
+export function addTagsToFamilies(familyIds: unknown, names: unknown): void {
+  if (!Array.isArray(names)) throw new Error('Invalid tags')
+  const db = getDb()
+  const current = db.prepare(
+    'SELECT t.name FROM family_tags ft JOIN tags t ON t.id = ft.tag_id WHERE ft.family_id = ?'
+  )
+  db.transaction(() => {
+    for (const id of ids(familyIds)) {
+      const existing = (current.all(id) as { name: string }[]).map((r) => r.name)
+      setFamilyTags(id, [...existing, ...names])
+    }
+  })()
+}
+
+export function removeFamilies(familyIds: unknown): void {
+  for (const id of ids(familyIds)) removeFamily(id)
+}
+
+/**
+ * Merges families into one. Styles, sources, tags, collection memberships and pairings
+ * move to the target. Styles with the same PostScript name collapse into one style that
+ * keeps every file. Stored files are not moved on disk.
+ */
+export function mergeFamilies(familyIds: unknown, targetId: number, newName: unknown): void {
+  const all = ids(familyIds)
+  if (!all.includes(targetId)) throw new Error('Target must be one of the merged families')
+  const others = all.filter((id) => id !== targetId)
+  if (others.length === 0) throw new Error('Select at least two families to merge')
+  const db = getDb()
+
+  db.transaction(() => {
+    const targetStyle = db.prepare('SELECT id FROM styles WHERE family_id = ? AND postscript_name = ?')
+    const targetSource = db.prepare(
+      'SELECT id FROM sources WHERE family_id = ? AND type = ? AND COALESCE(url, \'\') = COALESCE(?, \'\')'
+    )
+
+    for (const other of others) {
+      // Styles
+      const styles = db.prepare('SELECT id, postscript_name FROM styles WHERE family_id = ?').all(other) as {
+        id: number
+        postscript_name: string
+      }[]
+      for (const s of styles) {
+        const match = targetStyle.get(targetId, s.postscript_name) as { id: number } | undefined
+        if (match) {
+          db.prepare('UPDATE assets SET style_id = ? WHERE style_id = ?').run(match.id, s.id)
+          db.prepare('UPDATE pairings SET heading_style_id = ? WHERE heading_style_id = ?').run(match.id, s.id)
+          db.prepare('UPDATE pairings SET body_style_id = ? WHERE body_style_id = ?').run(match.id, s.id)
+          db.prepare('DELETE FROM styles WHERE id = ?').run(s.id)
+        } else {
+          db.prepare('UPDATE styles SET family_id = ? WHERE id = ?').run(targetId, s.id)
+        }
+      }
+
+      // Sources: identical ones (same type and URL) collapse; assets follow.
+      const sources = db.prepare('SELECT id, type, url FROM sources WHERE family_id = ?').all(other) as {
+        id: number
+        type: string
+        url: string | null
+      }[]
+      for (const src of sources) {
+        const match = targetSource.get(targetId, src.type, src.url) as { id: number } | undefined
+        if (match) {
+          db.prepare('UPDATE assets SET source_id = ? WHERE source_id = ?').run(match.id, src.id)
+          db.prepare('DELETE FROM sources WHERE id = ?').run(src.id)
+        } else {
+          db.prepare('UPDATE sources SET family_id = ? WHERE id = ?').run(targetId, src.id)
+        }
+      }
+
+      // Tags
+      db.prepare(
+        'INSERT OR IGNORE INTO family_tags (family_id, tag_id) SELECT ?, tag_id FROM family_tags WHERE family_id = ?'
+      ).run(targetId, other)
+
+      // Collections: keep the target's position if it is already there.
+      db.prepare(
+        `DELETE FROM collection_items WHERE family_id = ? AND collection_id IN
+           (SELECT collection_id FROM collection_items WHERE family_id = ?)`
+      ).run(other, targetId)
+      db.prepare('UPDATE collection_items SET family_id = ? WHERE family_id = ?').run(targetId, other)
+
+      // Pairings
+      db.prepare('UPDATE pairings SET heading_family_id = ? WHERE heading_family_id = ?').run(targetId, other)
+      db.prepare('UPDATE pairings SET body_family_id = ? WHERE body_family_id = ?').run(targetId, other)
+
+      // Fill gaps in the target's metadata.
+      db.prepare(
+        `UPDATE families SET
+           designer = COALESCE(designer, (SELECT designer FROM families WHERE id = @other)),
+           foundry = COALESCE(foundry, (SELECT foundry FROM families WHERE id = @other)),
+           category = COALESCE(category, (SELECT category FROM families WHERE id = @other)),
+           license = COALESCE(license, (SELECT license FROM families WHERE id = @other)),
+           license_url = COALESCE(license_url, (SELECT license_url FROM families WHERE id = @other)),
+           notes = CASE
+             WHEN (SELECT notes FROM families WHERE id = @other) IS NULL THEN notes
+             WHEN notes IS NULL THEN (SELECT notes FROM families WHERE id = @other)
+             ELSE notes || char(10) || char(10) || (SELECT notes FROM families WHERE id = @other) END
+         WHERE id = @target`
+      ).run({ other, target: targetId })
+
+      db.prepare('DELETE FROM families WHERE id = ?').run(other)
+    }
+
+    if (newName !== null && newName !== undefined) {
+      const name = cleanName(newName)
+      const clash = db.prepare('SELECT id FROM families WHERE name = ? COLLATE NOCASE AND id != ?').get(name, targetId)
+      if (clash) throw new Error(`A family named “${name}” already exists`)
+      db.prepare('UPDATE families SET name = ? WHERE id = ?').run(name, targetId)
+    }
+    db.prepare(`UPDATE families SET updated_at = ${now} WHERE id = ?`).run(targetId)
+  })()
+}

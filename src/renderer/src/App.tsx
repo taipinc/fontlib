@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CollectionSummary, FamilySummary, ImportResult, MenuItem, Settings } from '@shared/api'
 import { Sidebar, type View } from './components/Sidebar'
-import { Toolbar, type Layout } from './components/Toolbar'
+import { Toolbar, type Layout, type SelectionAction } from './components/Toolbar'
 import { FamilyGrid, FamilyRows } from './components/FamilyGrid'
-import { PromptDialog, TagDialog } from './components/Dialogs'
+import { MergeDialog, PromptDialog, TagDialog } from './components/Dialogs'
 import { systemTheme, useApplyTheme, type Theme } from './theme'
 
 const api = window.fontlib
@@ -13,7 +13,8 @@ const CATEGORY_PRESETS = ['Sans Serif', 'Serif', 'Slab Serif', 'Monospace', 'Dis
 
 type Dialog =
   | { kind: 'prompt'; props: Omit<React.ComponentProps<typeof PromptDialog>, 'onCancel'> }
-  | { kind: 'tags'; family: FamilySummary; allTags: string[] }
+  | { kind: 'tags'; title: string; familyIds: number[]; mode: 'set' | 'add'; initial: string[]; allTags: string[] }
+  | { kind: 'merge'; familyIds: number[] }
 
 function summarize(r: ImportResult): string {
   const parts: string[] = []
@@ -49,6 +50,8 @@ function Library({ initial }: { initial: Settings }) {
   const [busy, setBusy] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [dialog, setDialog] = useState<Dialog | null>(null)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const anchor = useRef<number | null>(null)
   const statusTimer = useRef<number | undefined>(undefined)
 
   useApplyTheme(theme)
@@ -138,32 +141,128 @@ function Library({ initial }: { initial: Settings }) {
       }
     })
 
+  const clearSelection = (): void => {
+    setSelected(new Set())
+    anchor.current = null
+  }
+
+  const toggle = (f: FamilySummary): void => {
+    setSelected((cur) => {
+      const next = new Set(cur)
+      if (next.has(f.id)) next.delete(f.id)
+      else next.add(f.id)
+      return next
+    })
+    anchor.current = f.id
+  }
+
+  /** ⇧-click selects the range from the last toggled family to this one, in display order. */
+  const selectRange = (f: FamilySummary): void => {
+    const order = visible.map((x) => x.id)
+    const from = anchor.current !== null ? order.indexOf(anchor.current) : -1
+    const to = order.indexOf(f.id)
+    if (from < 0 || to < 0) return toggle(f)
+    const [a, b] = from < to ? [from, to] : [to, from]
+    setSelected((cur) => new Set([...cur, ...order.slice(a, b + 1)]))
+  }
+
+  const onCellClick = (f: FamilySummary, e: React.MouseEvent): void => {
+    if (e.shiftKey) return selectRange(f)
+    if (e.metaKey || selected.size > 0) return toggle(f)
+    // Plain click will open the family page (next step).
+  }
+
+  const onToggle = (f: FamilySummary, e: React.MouseEvent): void => (e.shiftKey ? selectRange(f) : toggle(f))
+
+  const categoryItems = (current: string | null | undefined): MenuItem[] => [
+    ...categories.map((c) => ({ id: `cat:${c}`, label: c, type: 'checkbox' as const, checked: current === c })),
+    ...(categories.length ? [{ type: 'separator' as const }] : []),
+    { id: 'cat-new', label: 'New Category…' },
+    { id: 'cat-none', label: 'None', enabled: current !== null }
+  ]
+
+  const collectionItems = (familyIds: number[]): MenuItem[] => [
+    ...collections.map((c) => {
+      const all = familyIds.every((id) => c.familyIds.includes(id))
+      return { id: `col:${c.id}`, label: c.name, type: 'checkbox' as const, checked: all, enabled: !all }
+    }),
+    ...(collections.length ? [{ type: 'separator' as const }] : []),
+    { id: 'col-new', label: 'New Collection…' }
+  ]
+
+  /** Handles category/collection menu choices for any set of families. */
+  const applyChoice = (choice: string | null, familyIds: number[]): boolean => {
+    if (!choice) return true
+    if (choice.startsWith('cat:')) return void act(() => api.organize.setCategory(familyIds, choice.slice(4))), true
+    if (choice === 'cat-none') return void act(() => api.organize.setCategory(familyIds, null)), true
+    if (choice === 'cat-new') return newCategory(familyIds), true
+    if (choice.startsWith('col:'))
+      return void act(() => api.organize.addToCollection(Number(choice.slice(4)), familyIds)), true
+    if (choice === 'col-new') return newCollection((id) => api.organize.addToCollection(id, familyIds)), true
+    return false
+  }
+
+  const openTags = async (familyIds: number[], mode: 'set' | 'add'): Promise<void> => {
+    const all = (await api.organize.tags()).map((t) => t.name)
+    const f = families.find((x) => x.id === familyIds[0])
+    setDialog({
+      kind: 'tags',
+      familyIds,
+      mode,
+      allTags: all,
+      initial: mode === 'set' ? (f?.tags ?? []) : [],
+      title: mode === 'set' ? `Tags for ${f?.name ?? ''}` : `Add tags to ${familyIds.length} families`
+    })
+  }
+
+  const selectionAction = async (action: SelectionAction): Promise<void> => {
+    const ids = visible.filter((f) => selected.has(f.id)).map((f) => f.id)
+    const inCollection = view.kind === 'collection' ? collections.find((c) => c.id === view.id) : undefined
+    switch (action) {
+      case 'done':
+        return clearSelection()
+      case 'all':
+        return setSelected(new Set(visible.map((f) => f.id)))
+      case 'collection':
+        return void applyChoice(await api.ui.contextMenu(collectionItems(ids)), ids)
+      case 'category': {
+        const cats = new Set(families.filter((f) => ids.includes(f.id)).map((f) => f.category))
+        return void applyChoice(await api.ui.contextMenu(categoryItems(cats.size === 1 ? [...cats][0] : undefined)), ids)
+      }
+      case 'tags':
+        return openTags(ids, 'add')
+      case 'merge':
+        return setDialog({ kind: 'merge', familyIds: ids })
+      case 'uncollect':
+        if (inCollection) await act(() => api.organize.removeFromCollection(inCollection.id, ids))
+        return clearSelection()
+      case 'remove':
+        return act(async () => {
+          if (await api.organize.removeFamilies(ids)) clearSelection()
+        })
+    }
+  }
+
   const familyMenu = async (f: FamilySummary): Promise<void> => {
+    if (selected.has(f.id) && selected.size > 1) {
+      const choice = await api.ui.contextMenu([
+        { label: `${selected.size} selected`, enabled: false },
+        { type: 'separator' },
+        { label: 'Category', submenu: categoryItems(undefined) },
+        { label: 'Add to Collection', submenu: collectionItems([...selected]) },
+        { id: 'tags', label: 'Add Tags…' },
+        { id: 'merge', label: 'Merge…' },
+        { type: 'separator' },
+        { id: 'remove', label: 'Remove from Library…' }
+      ])
+      if (choice === 'tags' || choice === 'merge' || choice === 'remove') return selectionAction(choice)
+      applyChoice(choice, [...selected])
+      return
+    }
     const inCollection = view.kind === 'collection' ? collections.find((c) => c.id === view.id) : undefined
     const items: MenuItem[] = [
-      {
-        label: 'Category',
-        submenu: [
-          ...categories.map((c) => ({ id: `cat:${c}`, label: c, type: 'checkbox' as const, checked: f.category === c })),
-          ...(categories.length ? [{ type: 'separator' as const }] : []),
-          { id: 'cat-new', label: 'New Category…' },
-          { id: 'cat-none', label: 'None', enabled: f.category !== null }
-        ]
-      },
-      {
-        label: 'Add to Collection',
-        submenu: [
-          ...collections.map((c) => ({
-            id: `col:${c.id}`,
-            label: c.name,
-            type: 'checkbox' as const,
-            checked: c.familyIds.includes(f.id),
-            enabled: !c.familyIds.includes(f.id)
-          })),
-          ...(collections.length ? [{ type: 'separator' as const }] : []),
-          { id: 'col-new', label: 'New Collection…' }
-        ]
-      },
+      { label: 'Category', submenu: categoryItems(f.category) },
+      { label: 'Add to Collection', submenu: collectionItems([f.id]) },
       ...(inCollection ? [{ id: 'col-remove', label: `Remove from “${inCollection.name}”` }] : []),
       { id: 'tags', label: f.tags.length ? `Edit Tags (${f.tags.length})…` : 'Add Tags…' },
       { type: 'separator' },
@@ -177,18 +276,10 @@ function Library({ initial }: { initial: Settings }) {
     ]
 
     const choice = await api.ui.contextMenu(items)
-    if (!choice) return
-    if (choice.startsWith('cat:')) return act(() => api.organize.setCategory([f.id], choice.slice(4)))
-    if (choice === 'cat-none') return act(() => api.organize.setCategory([f.id], null))
-    if (choice === 'cat-new') return newCategory([f.id])
-    if (choice.startsWith('col:')) return act(() => api.organize.addToCollection(Number(choice.slice(4)), [f.id]))
-    if (choice === 'col-new') return newCollection((id) => api.organize.addToCollection(id, [f.id]))
+    if (applyChoice(choice, [f.id]) || !choice) return
     if (choice === 'col-remove' && inCollection)
       return act(() => api.organize.removeFromCollection(inCollection.id, [f.id]))
-    if (choice === 'tags') {
-      const all = await api.organize.tags()
-      return setDialog({ kind: 'tags', family: f, allTags: all.map((t) => t.name) })
-    }
+    if (choice === 'tags') return openTags([f.id], 'set')
     if (choice === 'reveal') return void api.library.revealFamily(f.id)
     if (choice === 'remove') return act(() => api.library.removeFamily(f.id))
   }
@@ -270,6 +361,30 @@ function Library({ initial }: { initial: Settings }) {
     )
   }, [families, collections, view, search])
 
+  // Selection is per view; drop it when the view changes or families disappear.
+  useEffect(() => clearSelection(), [view])
+  useEffect(() => {
+    setSelected((cur) => {
+      const ids = new Set(families.map((f) => f.id))
+      const next = new Set([...cur].filter((id) => ids.has(id)))
+      return next.size === cur.size ? cur : next
+    })
+  }, [families])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (dialog) return
+      const typing = (e.target as HTMLElement).closest('input, textarea')
+      if (e.key === 'Escape' && selected.size) clearSelection()
+      if (e.key === 'a' && e.metaKey && !typing) {
+        e.preventDefault()
+        setSelected(new Set(visible.map((f) => f.id)))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [dialog, selected, visible])
+
   const onDrop = (e: React.DragEvent): void => {
     if (!e.dataTransfer.types.includes('Files')) return
     e.preventDefault()
@@ -325,6 +440,11 @@ function Library({ initial }: { initial: Settings }) {
           onSize={setSize}
           theme={theme}
           onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+          selectionCount={selected.size}
+          collectionName={
+            view.kind === 'collection' ? (collections.find((c) => c.id === view.id)?.name ?? null) : null
+          }
+          onSelectionAction={selectionAction}
         />
         <section className="content">
           {loaded && families.length === 0 ? (
@@ -337,13 +457,24 @@ function Library({ initial }: { initial: Settings }) {
               <p className="empty-body">{emptyMessage}</p>
             </div>
           ) : layout === 'grid' ? (
-            <FamilyGrid families={visible} text={previewText || 'Aa 123'} size={size} onMenu={familyMenu} />
+            <FamilyGrid
+              families={visible}
+              text={previewText || 'Aa 123'}
+              size={size}
+              selected={selected}
+              onMenu={familyMenu}
+              onClick={onCellClick}
+              onToggle={onToggle}
+            />
           ) : (
             <FamilyRows
               families={visible}
               text={previewText || 'The quick brown fox jumps over the lazy dog'}
               size={size}
+              selected={selected}
               onMenu={familyMenu}
+              onClick={onCellClick}
+              onToggle={onToggle}
             />
           )}
         </section>
@@ -352,14 +483,35 @@ function Library({ initial }: { initial: Settings }) {
       {dialog?.kind === 'prompt' && <PromptDialog {...dialog.props} onCancel={() => setDialog(null)} />}
       {dialog?.kind === 'tags' && (
         <TagDialog
-          familyName={dialog.family.name}
-          initial={dialog.family.tags}
+          title={dialog.title}
+          initial={dialog.initial}
           allTags={dialog.allTags}
           onCancel={() => setDialog(null)}
           onSubmit={(tags) => {
-            const id = dialog.family.id
+            const { familyIds, mode } = dialog
             setDialog(null)
-            act(() => api.organize.setFamilyTags(id, tags))
+            act(() =>
+              mode === 'set'
+                ? api.organize.setFamilyTags(familyIds[0], tags)
+                : api.organize.addTags(familyIds, tags)
+            )
+          }}
+        />
+      )}
+      {dialog?.kind === 'merge' && (
+        <MergeDialog
+          families={families
+            .filter((f) => dialog.familyIds.includes(f.id))
+            .map((f) => ({ id: f.id, name: f.name, styleCount: f.styles.length }))}
+          onCancel={() => setDialog(null)}
+          onSubmit={(targetId, newName) => {
+            const ids = dialog.familyIds
+            setDialog(null)
+            act(async () => {
+              await api.organize.merge(ids, targetId, newName)
+              clearSelection()
+              showStatus(`Merged ${ids.length} families`)
+            })
           }}
         />
       )}

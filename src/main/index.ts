@@ -141,6 +141,22 @@ function registerIpc(): void {
   ipcMain.handle(IPC.addToCollection, (_e, id: number, ids: unknown) => organize.addToCollection(id, ids))
   ipcMain.handle(IPC.removeFromCollection, (_e, id: number, ids: unknown) => organize.removeFromCollection(id, ids))
 
+  ipcMain.handle(IPC.addTags, (_e, ids: unknown, tags: unknown) => organize.addTagsToFamilies(ids, tags))
+  ipcMain.handle(IPC.removeFamilies, async (event, ids: number[]) => {
+    if (!Array.isArray(ids) || ids.length === 0) return false
+    const ok = await confirm(
+      event.sender,
+      ids.length === 1 ? `Remove “${familyName(ids[0])}” from your library?` : `Remove ${ids.length} families from your library?`,
+      'Their stored font files are deleted from the library folder. Fonts installed on your system are not affected.',
+      'Remove'
+    )
+    if (ok) organize.removeFamilies(ids)
+    return ok
+  })
+  ipcMain.handle(IPC.merge, (_e, ids: unknown, targetId: number, newName: unknown) =>
+    organize.mergeFamilies(ids, targetId, newName)
+  )
+
   ipcMain.handle(
     IPC.contextMenu,
     (event, items: MenuItem[]) =>

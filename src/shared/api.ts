@@ -113,6 +113,11 @@ export interface FontLibApi {
     deleteCollection(id: number): Promise<boolean>
     addToCollection(id: number, familyIds: number[]): Promise<void>
     removeFromCollection(id: number, familyIds: number[]): Promise<void>
+    addTags(familyIds: number[], tags: string[]): Promise<void>
+    /** Asks for confirmation, then removes the families. Resolves true if removed. */
+    removeFamilies(familyIds: number[]): Promise<boolean>
+    /** Merges families into targetId; newName (if given) renames the result. */
+    merge(familyIds: number[], targetId: number, newName: string | null): Promise<void>
   }
   ui: {
     /** Shows a native context menu at the cursor; resolves with the chosen item id, or null. */
@@ -142,6 +147,9 @@ export const IPC = {
   deleteCollection: 'organize:delete-collection',
   addToCollection: 'organize:add-to-collection',
   removeFromCollection: 'organize:remove-from-collection',
+  addTags: 'organize:add-tags',
+  removeFamilies: 'organize:remove-families',
+  merge: 'organize:merge',
   contextMenu: 'ui:context-menu',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set'

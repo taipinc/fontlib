@@ -15,16 +15,22 @@ interface Props {
   families: FamilySummary[]
   text: string
   size: number
+  selected: Set<number>
   onMenu(family: FamilySummary): void
+  onClick(family: FamilySummary, e: MouseEvent): void
+  onToggle(family: FamilySummary, e: MouseEvent): void
 }
 
 function styleCount(n: number): string {
   return `${n} ${n === 1 ? 'style' : 'styles'}`
 }
 
-function cellHandlers(f: FamilySummary, onMenu: (f: FamilySummary) => void) {
+function cellHandlers(f: FamilySummary, p: Props) {
+  const { onMenu } = p
   return {
     draggable: true,
+    onClick: (e: MouseEvent) => p.onClick(f, e),
+    'aria-selected': p.selected.has(f.id),
     onDragStart: (e: DragEvent) => {
       e.dataTransfer.setData(FAMILY_DRAG_TYPE, String(f.id))
       e.dataTransfer.effectAllowed = 'copy'
@@ -49,6 +55,26 @@ function Marks({ f }: { f: FamilySummary }) {
   )
 }
 
+function CheckButton({ f, p }: { f: FamilySummary; p: Props }) {
+  const on = p.selected.has(f.id)
+  return (
+    <button
+      className={'cell-check' + (on ? ' is-on' : '')}
+      role="checkbox"
+      aria-checked={on}
+      aria-label={`Select ${f.name}`}
+      onClick={(e) => {
+        e.stopPropagation()
+        p.onToggle(f, e)
+      }}
+    >
+      <svg viewBox="0 0 12 12" aria-hidden="true">
+        <path d="M2.5 6.2l2.3 2.3 4.7-5" />
+      </svg>
+    </button>
+  )
+}
+
 function MoreButton({ f, onMenu }: { f: FamilySummary; onMenu(f: FamilySummary): void }) {
   return (
     <button
@@ -65,16 +91,18 @@ function MoreButton({ f, onMenu }: { f: FamilySummary; onMenu(f: FamilySummary):
   )
 }
 
-export function FamilyGrid({ families, text, size, onMenu }: Props) {
+export function FamilyGrid(p: Props) {
+  const { families, text, size, onMenu } = p
   return (
-    <div className="grid" style={{ ['--cell-min' as string]: `${Math.max(260, size * 4)}px` }}>
+    <div className={'grid' + (p.selected.size ? ' is-selecting' : '')} style={{ ['--cell-min' as string]: `${Math.max(260, size * 4)}px` }}>
       {families.map((f) => (
         <article
           key={f.id}
-          className="grid-cell"
+          className={'grid-cell' + (p.selected.has(f.id) ? ' is-selected' : '')}
           style={{ minHeight: `${Math.round(size * 1.4 + 120)}px` }}
-          {...cellHandlers(f, onMenu)}
+          {...cellHandlers(f, p)}
         >
+          <CheckButton f={f} p={p} />
           <div className="cell-marks">
             <Marks f={f} />
           </div>
@@ -100,11 +128,17 @@ export function FamilyGrid({ families, text, size, onMenu }: Props) {
   )
 }
 
-export function FamilyRows({ families, text, size, onMenu }: Props) {
+export function FamilyRows(p: Props) {
+  const { families, text, size, onMenu } = p
   return (
-    <div className="rows">
+    <div className={'rows' + (p.selected.size ? ' is-selecting' : '')}>
       {families.map((f) => (
-        <article key={f.id} className="row" {...cellHandlers(f, onMenu)}>
+        <article
+          key={f.id}
+          className={'row' + (p.selected.has(f.id) ? ' is-selected' : '')}
+          {...cellHandlers(f, p)}
+        >
+          <CheckButton f={f} p={p} />
           <div className="row-meta">
             <div className="cell-name">{f.name}</div>
             <div className="cell-sub">

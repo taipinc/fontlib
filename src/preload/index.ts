@@ -27,7 +27,10 @@ const api: FontLibApi = {
     setCollectionKind: (id, kind) => ipcRenderer.invoke(IPC.setCollectionKind, id, kind),
     deleteCollection: (id) => ipcRenderer.invoke(IPC.deleteCollection, id),
     addToCollection: (id, ids) => ipcRenderer.invoke(IPC.addToCollection, id, ids),
-    removeFromCollection: (id, ids) => ipcRenderer.invoke(IPC.removeFromCollection, id, ids)
+    removeFromCollection: (id, ids) => ipcRenderer.invoke(IPC.removeFromCollection, id, ids),
+    addTags: (ids, tags) => ipcRenderer.invoke(IPC.addTags, ids, tags),
+    removeFamilies: (ids) => ipcRenderer.invoke(IPC.removeFamilies, ids),
+    merge: (ids, targetId, newName) => ipcRenderer.invoke(IPC.merge, ids, targetId, newName)
   },
   ui: {
     contextMenu: (items) => ipcRenderer.invoke(IPC.contextMenu, items)

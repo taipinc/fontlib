@@ -2,6 +2,8 @@ import type { Theme } from '../theme'
 
 export type Layout = 'grid' | 'rows'
 
+export type SelectionAction = 'collection' | 'tags' | 'category' | 'merge' | 'remove' | 'uncollect' | 'all' | 'done'
+
 interface Props {
   count: number
   search: string
@@ -14,9 +16,51 @@ interface Props {
   onSize(v: number): void
   theme: Theme
   onToggleTheme(): void
+  selectionCount: number
+  /** Name of the collection being viewed, if any (enables "Remove from collection"). */
+  collectionName: string | null
+  onSelectionAction(action: SelectionAction): void
+}
+
+function SelectionBar(p: Props) {
+  const n = p.selectionCount
+  const btn = (action: SelectionAction, label: string, enabled = true) => (
+    <button className="bar-button" disabled={!enabled} onClick={() => p.onSelectionAction(action)}>
+      {label}
+    </button>
+  )
+  return (
+    <>
+      <div className="toolbar-count toolbar-count-strong">
+        {n} selected
+        <button className="link-button" onClick={() => p.onSelectionAction('all')}>
+          Select All
+        </button>
+      </div>
+      <div className="selection-bar">
+        {btn('collection', 'Add to Collection')}
+        {p.collectionName && btn('uncollect', 'Remove from Collection')}
+        {btn('tags', 'Add Tags…')}
+        {btn('category', 'Category')}
+        {btn('merge', 'Merge…', n >= 2)}
+        {btn('remove', 'Remove…')}
+      </div>
+      <button className="button button-primary bar-done" onClick={() => p.onSelectionAction('done')}>
+        Done
+      </button>
+    </>
+  )
 }
 
 export function Toolbar(p: Props) {
+  if (p.selectionCount > 0) {
+    return (
+      <header className="toolbar is-selecting">
+        <SelectionBar {...p} />
+      </header>
+    )
+  }
+
   return (
     <header className="toolbar">
       <div className="toolbar-count">

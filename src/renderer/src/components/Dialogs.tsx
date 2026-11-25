@@ -81,7 +81,7 @@ export function PromptDialog(p: PromptProps) {
 }
 
 interface TagProps {
-  familyName: string
+  title: string
   initial: string[]
   allTags: string[]
   onSubmit(tags: string[]): void
@@ -119,7 +119,7 @@ export function TagDialog(p: TagProps) {
           p.onSubmit(draft.trim() ? [...tags, ...draft.split(',').map((t) => t.trim()).filter(Boolean)] : tags)
         }}
       >
-        <div className="modal-title">Tags for {p.familyName}</div>
+        <div className="modal-title">{p.title}</div>
         <div className="tag-box">
           {tags.map((t) => (
             <span key={t} className="tag">
@@ -161,6 +161,70 @@ export function TagDialog(p: TagProps) {
           </button>
           <button type="submit" className="button button-primary">
             Save
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+interface MergeProps {
+  families: { id: number; name: string; styleCount: number }[]
+  onSubmit(targetId: number, newName: string | null): void
+  onCancel(): void
+}
+
+/** Choose which family survives a merge, or give the result a new name. */
+export function MergeDialog(p: MergeProps) {
+  // Default to the family with the most styles, usually the "main" one.
+  const initial = [...p.families].sort((a, b) => b.styleCount - a.styleCount)[0]
+  const [target, setTarget] = useState<number | 'new'>(initial.id)
+  const [newName, setNewName] = useState(initial.name)
+  const total = p.families.reduce((n, f) => n + f.styleCount, 0)
+
+  return (
+    <Modal onCancel={p.onCancel}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (target === 'new') {
+            if (newName.trim()) p.onSubmit(initial.id, newName.trim())
+          } else p.onSubmit(target, null)
+        }}
+      >
+        <div className="modal-title">Merge {p.families.length} families</div>
+        <div className="modal-label">
+          All {total} styles, sources, tags and collection memberships move into one family. Keep the name:
+        </div>
+        <div className="radio-list">
+          {p.families.map((f) => (
+            <label key={f.id} className="radio-row">
+              <input type="radio" name="target" checked={target === f.id} onChange={() => setTarget(f.id)} />
+              <span className="radio-name">{f.name}</span>
+              <span className="radio-sub">
+                {f.styleCount} {f.styleCount === 1 ? 'style' : 'styles'}
+              </span>
+            </label>
+          ))}
+          <label className="radio-row">
+            <input type="radio" name="target" checked={target === 'new'} onChange={() => setTarget('new')} />
+            <span className="radio-name">New name</span>
+          </label>
+          {target === 'new' && (
+            <input
+              className="field modal-input radio-input"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              autoFocus
+            />
+          )}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="button" onClick={p.onCancel}>
+            Cancel
+          </button>
+          <button type="submit" className="button button-primary" disabled={target === 'new' && !newName.trim()}>
+            Merge
           </button>
         </div>
       </form>
