@@ -32,6 +32,22 @@ export interface StyleSummary {
   originFamily?: string
   /** For styles with no local file (Google Fonts): where the browser loads the face from. */
   remote?: RemoteFace
+  /** The style's files (system references) can no longer be found. */
+  missing?: boolean
+  /** Picker previews only: a fontlib:// URL to load the face from directly. */
+  previewUrl?: string
+}
+
+/** An installed family, as listed by the system font picker (never persisted). */
+export interface SystemFamily {
+  name: string
+  styleCount: number
+  /** Face to preview, served at fontlib://system/<id>. */
+  previewFaceId: number
+  /** Every style is already in the library. */
+  inLibrary: boolean
+  /** Installed by the user (~/Library/Fonts or /Library/Fonts) rather than shipped with macOS. */
+  userInstalled: boolean
 }
 
 /** A face loaded by the browser from a web font stylesheet (Google CSS2). */
@@ -226,6 +242,8 @@ export interface FontLibApi {
     removeFamily(familyId: number): Promise<boolean>
     revealFamily(familyId: number): Promise<void>
     family(familyId: number): Promise<FamilyDetail | null>
+    /** Subscribes to library changes made outside the renderer (e.g. relocated system fonts). */
+    onChanged(listener: () => void): () => void
     updateFamily(familyId: number, patch: FamilyPatch): Promise<void>
     /** Attaches a Google Fonts or GitHub URL to a family as a reference source. */
     addSourceLink(familyId: number, url: string): Promise<void>
@@ -266,6 +284,12 @@ export interface FontLibApi {
     /** Adds the family (or attaches it to an existing one). Resolves with the family id. */
     add(url: string): Promise<number>
   }
+  system: {
+    /** Scans installed fonts (cached for the session) and lists their families. */
+    list(): Promise<SystemFamily[]>
+    /** Adds installed families to the library by reference (path and PostScript name). */
+    add(names: string[]): Promise<GitHubImportResult>
+  }
   github: {
     /** Lists font files in the repo's latest release and default branch. */
     lookup(url: string): Promise<GitHubPreview>
@@ -299,6 +323,9 @@ export const IPC = {
   googleLookup: 'google:lookup',
   googleAdd: 'google:add',
   githubLookup: 'github:lookup',
+  systemList: 'system:list',
+  systemAdd: 'system:add',
+  libraryChanged: 'library:changed',
   githubImport: 'github:import',
   tags: 'organize:tags',
   setFamilyTags: 'organize:set-family-tags',

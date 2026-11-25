@@ -4,9 +4,11 @@ import { isAbsolute, join, resolve, sep } from 'node:path'
 import { getDb } from './db'
 import { fontsPath } from './paths'
 import { extractFromCollection } from './sfnt'
+import { scannedFace } from './system'
 
 // fontlib://asset/<id> serves one font face by asset id. The renderer never sees file
 // paths and can only reach files that are registered in the database.
+// fontlib://system/<id> serves a face from the current installed-fonts scan (picker previews).
 
 export const SCHEME = 'fontlib'
 
@@ -35,7 +37,20 @@ export function handleProtocol(): void {
   protocol.handle(SCHEME, async (request) => {
     const url = new URL(request.url)
     const id = Number(url.pathname.replace(/^\//, ''))
-    if (url.host !== 'asset' || !Number.isInteger(id)) return notFound()
+    if (!Number.isInteger(id)) return notFound()
+
+    if (url.host === 'system') {
+      const face = scannedFace(id)
+      if (!face) return notFound()
+      try {
+        let data: Buffer = await readFile(face.path)
+        if (face.index !== null) data = extractFromCollection(data, face.index)
+        return new Response(new Uint8Array(data), { headers: { ...HEADERS, 'Content-Type': 'font/ttf' } })
+      } catch {
+        return notFound()
+      }
+    }
+    if (url.host !== 'asset') return notFound()
 
     const asset = getDb()
       .prepare('SELECT kind, storage, path, collection_index FROM assets WHERE id = ?')

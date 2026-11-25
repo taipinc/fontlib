@@ -5,6 +5,7 @@ import { getDb } from './db'
 import { importPaths } from './importer'
 import { backfillOriginFamilies, getFamily, getSettings, listFamilies, setSettings } from './library'
 import { importGitHub, lookupGitHub } from './github'
+import { addSystemFamilies, listSystemFamilies, verifySystemAssets } from './system'
 import { addGoogleFamily, lookupGoogle } from './google'
 import * as organize from './organize'
 import { libraryPath } from './paths'
@@ -33,7 +34,14 @@ function createWindow(): void {
     }
   })
 
-  win.once('ready-to-show', () => win.show())
+  win.once('ready-to-show', () => {
+    win.show()
+    // Check system font references in the background; tell the window if anything changed.
+    verifySystemAssets().then(
+      (changed) => changed && !win.isDestroyed() && win.webContents.send(IPC.libraryChanged),
+      (e) => console.warn('System font check failed', e)
+    )
+  })
 
   // Never open new windows inside the app; external links go to the default browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -149,6 +157,8 @@ function registerIpc(): void {
     return (await addGoogleFamily(url)).familyId
   })
 
+  ipcMain.handle(IPC.systemList, () => listSystemFamilies())
+  ipcMain.handle(IPC.systemAdd, (_e, names: unknown) => addSystemFamilies(names))
   ipcMain.handle(IPC.githubLookup, async (_e, url: unknown) => {
     if (typeof url !== 'string') throw new Error('Invalid link')
     return (await lookupGitHub(url)).preview

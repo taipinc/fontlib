@@ -46,6 +46,7 @@ function cellHandlers(f: FamilySummary, p: Props) {
 function Marks({ f }: { f: FamilySummary }) {
   return (
     <>
+      {f.styles.length > 0 && f.styles.every((s) => s.missing) && <span className="mark mark-alert">Missing</span>}
       {f.isVariable && <span className="mark">Variable</span>}
       {f.sources.map((s) => (
         <span key={s} className="mark">

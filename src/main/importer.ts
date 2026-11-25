@@ -15,6 +15,8 @@ export interface Input {
   origin: string
   filename: string
   buffer: Buffer
+  /** For system fonts: the installed file, referenced in place instead of copied. */
+  systemPath?: string
 }
 
 function isHidden(name: string): boolean {
@@ -112,6 +114,7 @@ function assetKind(filename: string): string {
 /** Where imported files came from. Files from GitHub record the repo and the tag or commit. */
 export type SourceSpec =
   | { type: 'file' }
+  | { type: 'system'; families: Set<string> }
   | {
       type: 'github'
       /** Canonical repo URL, also the identity of the source within a family. */
@@ -188,12 +191,18 @@ export function importInputs(inputs: Input[], spec: SourceSpec): ImportOutcome {
               @isVariable, @axes, @features, @scripts, @glyphCount, @version, @originFamily)`),
     insertAsset: db.prepare(`
       INSERT INTO assets (style_id, source_id, kind, storage, path, collection_index, size, sha1)
-      VALUES (?, ?, ?, 'stored', ?, ?, ?, ?)`)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
+    systemSource: db.prepare("SELECT id FROM sources WHERE family_id = ? AND type = 'system' LIMIT 1"),
+    insertSystem: db.prepare("INSERT INTO sources (family_id, type, version) VALUES (?, 'system', ?)"),
+    styleHasSystem: db.prepare("SELECT 1 FROM assets WHERE style_id = ? AND storage = 'system-path' LIMIT 1")
   }
 
   for (const input of inputs) {
-    const sha1 = createHash('sha1').update(input.buffer).digest('hex')
-    if (q.assetBySha.get(sha1)) {
+    // System fonts are referenced in place; their contents can change with OS updates,
+    // so they are identified by PostScript name rather than by content hash.
+    const isSystem = spec.type === 'system'
+    const sha1 = isSystem ? null : createHash('sha1').update(input.buffer).digest('hex')
+    if (sha1 && q.assetBySha.get(sha1)) {
       result.skippedDuplicates++
       continue
     }
@@ -205,7 +214,10 @@ export function importInputs(inputs: Input[], spec: SourceSpec): ImportOutcome {
       result.errors.push({ file: input.origin, message: `Not a readable font (${(e as Error).message})` })
       continue
     }
+    // A system collection can hold several families; keep only the ones the user picked.
+    if (spec.type === 'system') styles = styles.filter((s) => spec.families.has(s.familyName))
     if (styles.length === 0) {
+      if (isSystem) continue
       result.errors.push({ file: input.origin, message: 'Font has no family or PostScript name' })
       continue
     }
@@ -233,7 +245,10 @@ export function importInputs(inputs: Input[], spec: SourceSpec): ImportOutcome {
           }
 
           const existingStyle = q.styleByPs.get(familyId, s.postscriptName) as { id: number } | undefined
-          if (existingStyle && q.styleHasFormat.get(existingStyle.id, assetKind(input.filename))) {
+          const duplicate = isSystem
+            ? existingStyle && q.styleHasSystem.get(existingStyle.id)
+            : existingStyle && q.styleHasFormat.get(existingStyle.id, assetKind(input.filename))
+          if (duplicate) {
             result.skippedDuplicates++
             continue
           }
@@ -243,6 +258,10 @@ export function importInputs(inputs: Input[], spec: SourceSpec): ImportOutcome {
             sourceId =
               (q.fileSource.get(familyId) as { id: number } | undefined)?.id ??
               Number(q.insertSource.run(familyId, s.version).lastInsertRowid)
+          } else if (spec.type === 'system') {
+            sourceId =
+              (q.systemSource.get(familyId) as { id: number } | undefined)?.id ??
+              Number(q.insertSystem.run(familyId, s.version).lastInsertRowid)
           } else {
             // One GitHub source per repo per family; a hand-added reference link becomes the real source.
             const meta = JSON.stringify(spec.meta)
@@ -280,16 +299,30 @@ export function importInputs(inputs: Input[], spec: SourceSpec): ImportOutcome {
             )
           if (!existingStyle) result.stylesAdded++
 
-          storedPath ??= store(slugify(s.familyName), input.filename, input.buffer)
-          q.insertAsset.run(
-            styleId,
-            sourceId,
-            assetKind(input.filename),
-            storedPath,
-            s.collectionIndex,
-            input.buffer.length,
-            sha1
-          )
+          if (isSystem) {
+            q.insertAsset.run(
+              styleId,
+              sourceId,
+              assetKind(input.filename),
+              'system-path',
+              input.systemPath,
+              s.collectionIndex,
+              input.buffer.length,
+              null
+            )
+          } else {
+            storedPath ??= store(slugify(s.familyName), input.filename, input.buffer)
+            q.insertAsset.run(
+              styleId,
+              sourceId,
+              assetKind(input.filename),
+              'stored',
+              storedPath,
+              s.collectionIndex,
+              input.buffer.length,
+              sha1
+            )
+          }
         }
       })()
     } catch (e) {

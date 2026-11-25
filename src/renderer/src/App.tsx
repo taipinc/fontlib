@@ -3,7 +3,7 @@ import type { CollectionSummary, FamilySummary, ImportResult, MenuItem, Settings
 import { Sidebar, type View } from './components/Sidebar'
 import { Toolbar, type Layout, type SelectionAction } from './components/Toolbar'
 import { FamilyGrid, FamilyRows } from './components/FamilyGrid'
-import { AddDialog, MergeDialog, PromptDialog, TagDialog } from './components/Dialogs'
+import { AddDialog, MergeDialog, PromptDialog, SystemDialog, TagDialog } from './components/Dialogs'
 import { FamilyPage } from './components/FamilyPage'
 import { systemTheme, useApplyTheme, type Theme } from './theme'
 
@@ -17,6 +17,7 @@ type Dialog =
   | { kind: 'tags'; title: string; familyIds: number[]; mode: 'set' | 'add'; initial: string[]; allTags: string[] }
   | { kind: 'merge'; familyIds: number[] }
   | { kind: 'add' }
+  | { kind: 'system' }
 
 function summarize(r: ImportResult): string {
   const parts: string[] = []
@@ -81,6 +82,9 @@ function Library({ initial }: { initial: Settings }) {
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // Main tells us when it changed the library itself (e.g. relocated or missing system fonts).
+  useEffect(() => api.library.onChanged(() => void refresh()), [refresh])
 
   const showStatus = (text: string): void => {
     setStatus(text)
@@ -581,6 +585,7 @@ function Library({ initial }: { initial: Settings }) {
             setDialog(null)
             runImport(() => api.library.importWithPicker())
           }}
+          onSystemFonts={() => setDialog({ kind: 'system' })}
           onImported={async (result, repo) => {
             setDialog(null)
             if (result.errors.length) console.warn('Import errors', result.errors)
@@ -593,6 +598,18 @@ function Library({ initial }: { initial: Settings }) {
             await refresh()
             showStatus(`Added ${name} from Google Fonts`)
             setOpenFamily(id)
+          }}
+        />
+      )}
+      {dialog?.kind === 'system' && (
+        <SystemDialog
+          onCancel={() => setDialog(null)}
+          onAdded={async (result) => {
+            setDialog(null)
+            if (result.errors.length) console.warn('Import errors', result.errors)
+            await refresh()
+            showStatus(summarize(result))
+            if (result.familyIds.length === 1) setOpenFamily(result.familyIds[0])
           }}
         />
       )}

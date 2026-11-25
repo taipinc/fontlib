@@ -9,6 +9,7 @@ import type { RemoteFace, StyleSummary } from '@shared/api'
 //   waits for the specific weight/style. If that fails, the face is reported offline.
 
 const localCache = new Map<number, Promise<string>>()
+const urlCache = new Map<string, Promise<string>>()
 const sheetCache = new Map<string, Promise<void>>()
 const remoteCache = new Map<string, Promise<void>>()
 
@@ -27,6 +28,21 @@ export function loadFace(assetId: number): Promise<string> {
     })
     p.catch(() => localCache.delete(assetId))
     localCache.set(assetId, p)
+  }
+  return p
+}
+
+/** Loads a face from a fontlib:// URL (picker previews of not-yet-added fonts). */
+export function loadUrlFace(url: string): Promise<string> {
+  let p = urlCache.get(url)
+  if (!p) {
+    const name = `fl-url-${urlCache.size + 1}`
+    p = new FontFace(name, `url(${url})`).load().then((loaded) => {
+      document.fonts.add(loaded)
+      return name
+    })
+    p.catch(() => urlCache.delete(url))
+    urlCache.set(url, p)
   }
   return p
 }
@@ -70,6 +86,7 @@ export type FaceState =
   | { status: 'loading' }
   | { status: 'ready'; family: string; weight?: number; italic?: boolean }
   | { status: 'offline' }
+  | { status: 'missing' }
   | { status: 'error' }
 
 export function useFace(style: StyleSummary | undefined): FaceState {
@@ -77,11 +94,20 @@ export function useFace(style: StyleSummary | undefined): FaceState {
   const assetId = style?.assetId ?? null
   const remote = style?.remote
   const remoteKey = remote ? `${remote.cssUrl}|${remote.weight}|${remote.italic}` : null
+  const previewUrl = style?.previewUrl ?? null
+  const missing = style?.missing ?? false
 
   useEffect(() => {
     let alive = true
     setState({ status: 'loading' })
-    if (assetId !== null) {
+    if (previewUrl) {
+      loadUrlFace(previewUrl).then(
+        (family) => alive && setState({ status: 'ready', family }),
+        () => alive && setState({ status: 'error' })
+      )
+    } else if (missing) {
+      setState({ status: 'missing' })
+    } else if (assetId !== null) {
       loadFace(assetId).then(
         (family) => alive && setState({ status: 'ready', family }),
         () => alive && setState({ status: 'error' })
@@ -108,7 +134,7 @@ export function useFace(style: StyleSummary | undefined): FaceState {
       alive = false
       window.removeEventListener('online', onOnline)
     }
-  }, [assetId, remoteKey])
+  }, [assetId, remoteKey, previewUrl, missing])
 
   return state
 }

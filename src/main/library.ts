@@ -28,6 +28,7 @@ interface StyleRow {
   axes: string
   asset_id: number | null
   origin_family: string | null
+  missing_count: number
 }
 
 /** Picks the style closest to Regular: upright, weight nearest 400, normal width. */
@@ -62,6 +63,7 @@ export function listFamilies(): FamilySummary[] {
     .prepare(
       `SELECT s.id, s.family_id, s.postscript_name, s.style_name, s.weight, s.italic, s.width, s.is_variable, s.axes,
               s.origin_family,
+              (SELECT COUNT(*) FROM assets a WHERE a.style_id = s.id AND a.missing = 1) AS missing_count,
               (SELECT a.id FROM assets a WHERE a.style_id = s.id AND a.missing = 0 AND a.storage != 'remote'
                ORDER BY CASE a.storage WHEN 'stored' THEN 0 ELSE 1 END LIMIT 1) AS asset_id
        FROM styles s
@@ -109,6 +111,7 @@ export function listFamilies(): FamilySummary[] {
       axes: JSON.parse(r.axes) as Axis[],
       assetId: r.asset_id,
       originFamily: r.origin_family ?? undefined,
+      missing: r.asset_id === null && !remoteByStyle.has(r.id) && r.missing_count > 0 ? true : undefined,
       remote: remoteByStyle.has(r.id)
         ? { ...remoteByStyle.get(r.id)!, weight: r.weight, italic: r.italic === 1 }
         : undefined

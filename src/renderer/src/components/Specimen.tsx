@@ -22,12 +22,9 @@ interface Props {
 export function Specimen({ style, text, size, className, variation, features, wrap, editable, onEdit }: Props) {
   const face = useFace(style)
 
-  if (face.status === 'error' || face.status === 'offline') {
-    return (
-      <div className={'specimen specimen-unavailable ' + (className ?? '')}>
-        {face.status === 'offline' ? 'Offline' : 'Preview unavailable'}
-      </div>
-    )
+  if (face.status === 'error' || face.status === 'offline' || face.status === 'missing') {
+    const label = { offline: 'Offline', missing: 'Font file missing', error: 'Preview unavailable' }[face.status]
+    return <div className={'specimen specimen-unavailable ' + (className ?? '')}>{label}</div>
   }
 
   const ready = face.status === 'ready'

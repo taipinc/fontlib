@@ -1435,3 +1435,69 @@ label {
 .gh-count {
   flex: 1;
 }
+
+/* System font picker */
+
+.system-list {
+  max-height: 380px;
+}
+
+.system-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+}
+
+.system-row + .system-row {
+  border-top: 1px solid var(--border);
+}
+
+.system-row:hover {
+  background: var(--bg-hover);
+}
+
+.system-row input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.system-row.is-added {
+  color: var(--text-muted);
+}
+
+.system-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.system-name .specimen {
+  font-size: 22px;
+}
+
+.system-dialog .modal-hint {
+  margin-top: 10px;
+}
+
+.mark-alert {
+  background: rgba(192, 57, 43, 0.12);
+  color: #c0392b;
+}
+
+:root[data-theme='dark'] .mark-alert {
+  color: #ff7b6b;
+}
+
+/* Dialog buttons keep their labels on one line; the Add dialog is wide enough for its row. */
+.modal-actions .button {
+  white-space: nowrap;
+  flex: none;
+}
+
+.modal:has(.add-dialog) {
+  width: 560px;
+}
+
+.modal:has(.add-dialog.is-wide) {
+  width: 620px;
+}

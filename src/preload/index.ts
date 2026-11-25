@@ -16,6 +16,11 @@ const api: FontLibApi = {
     removeFamily: (id) => ipcRenderer.invoke(IPC.removeFamily, id),
     revealFamily: (id) => ipcRenderer.invoke(IPC.revealFamily, id),
     family: (id) => ipcRenderer.invoke(IPC.family, id),
+    onChanged: (listener) => {
+      const handler = (): void => listener()
+      ipcRenderer.on(IPC.libraryChanged, handler)
+      return () => ipcRenderer.removeListener(IPC.libraryChanged, handler)
+    },
     updateFamily: (id, patch) => ipcRenderer.invoke(IPC.updateFamily, id, patch),
     addSourceLink: (id, url) => ipcRenderer.invoke(IPC.addSourceLink, id, url),
     removeSourceLink: (id) => ipcRenderer.invoke(IPC.removeSourceLink, id),
@@ -23,6 +28,10 @@ const api: FontLibApi = {
     revealAsset: (id) => ipcRenderer.invoke(IPC.revealAsset, id),
     setDefaultStyle: (familyId, styleId, variation) =>
       ipcRenderer.invoke(IPC.setDefaultStyle, familyId, styleId, variation)
+  },
+  system: {
+    list: () => ipcRenderer.invoke(IPC.systemList),
+    add: (names) => ipcRenderer.invoke(IPC.systemAdd, names)
   },
   github: {
     lookup: (url) => ipcRenderer.invoke(IPC.githubLookup, url),

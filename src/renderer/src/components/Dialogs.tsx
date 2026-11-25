@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { GitHubFile, GitHubImportResult, GitHubPreview, GooglePreview, StyleSummary } from '@shared/api'
+import type {
+  GitHubFile,
+  GitHubImportResult,
+  GitHubPreview,
+  GooglePreview,
+  StyleSummary,
+  SystemFamily
+} from '@shared/api'
 import { parseSourceLink } from '@shared/links'
 import { Specimen } from './Specimen'
 
@@ -237,6 +244,7 @@ export function MergeDialog(p: MergeProps) {
 
 interface AddProps {
   onChooseFiles(): void
+  onSystemFonts(): void
   /** Called after a Google family is added, with its id and name. */
   onAdded(familyId: number, name: string): void
   /** Called after files are imported from GitHub. */
@@ -364,6 +372,9 @@ export function AddDialog(p: AddProps) {
         <div className="modal-actions add-actions">
           <button type="button" className="button" onClick={p.onChooseFiles}>
             Choose Files…
+          </button>
+          <button type="button" className="button" onClick={p.onSystemFonts}>
+            System Fonts…
           </button>
           <span className="add-spacer" />
           <button type="button" className="button" onClick={p.onCancel}>
@@ -568,5 +579,150 @@ export function GitHubPicker({
         </button>
       </div>
     </div>
+  )
+}
+
+/** Renders children only once scrolled into view (keeps long font lists light). */
+function WhenVisible({ children, height }: { children: ReactNode; height: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [seen, setSeen] = useState(false)
+  useEffect(() => {
+    if (seen || !ref.current) return
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        setSeen(true)
+        io.disconnect()
+      }
+    })
+    io.observe(ref.current)
+    return () => io.disconnect()
+  }, [seen])
+  return (
+    <div ref={ref} style={{ minHeight: height }}>
+      {seen ? children : null}
+    </div>
+  )
+}
+
+interface SystemProps {
+  onAdded(result: GitHubImportResult): void
+  onCancel(): void
+}
+
+/** Lists installed fonts (a transient scan, never saved) and adds the chosen families by reference. */
+export function SystemDialog(p: SystemProps) {
+  const [families, setFamilies] = useState<SystemFamily[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [filter, setFilter] = useState('')
+  const [scope, setScope] = useState<'all' | 'user'>('all')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    window.fontlib.system.list().then(setFamilies, (e) => setError(errorText(e)))
+  }, [])
+
+  const q = filter.trim().toLowerCase()
+  const shown = (families ?? []).filter(
+    (f) => (scope === 'all' || f.userInstalled) && (!q || f.name.toLowerCase().includes(q))
+  )
+
+  const add = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      p.onAdded(await window.fontlib.system.add([...selected]))
+    } catch (e) {
+      setError(errorText(e))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal onCancel={p.onCancel}>
+      <div className="add-dialog is-wide system-dialog">
+        <div className="modal-title">System Fonts</div>
+        <div className="gh-bar">
+          <div className="segmented">
+            <button type="button" className={scope === 'all' ? 'is-active' : ''} onClick={() => setScope('all')}>
+              All
+            </button>
+            <button type="button" className={scope === 'user' ? 'is-active' : ''} onClick={() => setScope('user')}>
+              Installed by You
+            </button>
+          </div>
+          <input
+            className="field gh-filter"
+            type="search"
+            placeholder="Filter families"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        <div className="gh-list system-list">
+          {!families && !error && <div className="modal-hint gh-empty">Reading installed fonts…</div>}
+          {error && <div className="add-error gh-empty">{error}</div>}
+          {families && shown.length === 0 && <div className="modal-hint gh-empty">No families match.</div>}
+          {shown.map((f) => (
+            <label key={f.name} className={'system-row' + (f.inLibrary ? ' is-added' : '')}>
+              <input
+                type="checkbox"
+                disabled={f.inLibrary}
+                checked={f.inLibrary || selected.has(f.name)}
+                onChange={(e) =>
+                  setSelected((cur) => {
+                    const next = new Set(cur)
+                    e.target.checked ? next.add(f.name) : next.delete(f.name)
+                    return next
+                  })
+                }
+              />
+              <div className="system-name">
+                <WhenVisible height={30}>
+                  <Specimen
+                    style={{
+                      id: -f.previewFaceId,
+                      postscriptName: '',
+                      styleName: '',
+                      weight: 400,
+                      italic: false,
+                      width: 5,
+                      isVariable: false,
+                      axes: [],
+                      assetId: null,
+                      previewUrl: `fontlib://system/${f.previewFaceId}`
+                    }}
+                    text={f.name}
+                    size={22}
+                  />
+                </WhenVisible>
+                <div className="cell-sub">
+                  {f.name} · {f.styleCount} {f.styleCount === 1 ? 'style' : 'styles'}
+                </div>
+              </div>
+              {f.inLibrary && <span className="mark">In Library</span>}
+            </label>
+          ))}
+        </div>
+
+        <div className="modal-hint">
+          Added fonts are referenced where macOS keeps them, not copied. Many fonts that ship with macOS can’t be
+          redistributed.
+        </div>
+        <div className="modal-actions">
+          <span className="cell-sub gh-count">
+            {families && `${shown.length} families`}
+            {selected.size > 0 && ` · ${selected.size} selected`}
+          </span>
+          <button type="button" className="button" onClick={p.onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="button button-primary" disabled={!selected.size || busy} onClick={add}>
+            {busy ? 'Adding…' : 'Add to Library'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
