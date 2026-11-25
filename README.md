@@ -84,7 +84,7 @@ Contributions are welcome: bug reports, ideas and pull requests. For anything la
 
 ## Status
 
-FontLib is built for one person's workflow and is still evolving. Not supported: installing or activating fonts (copy the files from Finder and install them yourself), syncing between machines (use Export/Import Library), Windows and Linux.
+FontLib is built for one person's workflow and is still evolving. Ideas for what comes next are in the [roadmap](ROADMAP.md). Not supported: installing or activating fonts (copy the files from Finder and install them yourself), syncing between machines (use Export/Import Library), Windows and Linux.
 
 ## License
 
