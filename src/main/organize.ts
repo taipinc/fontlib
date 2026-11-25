@@ -318,6 +318,7 @@ export function addSourceLink(familyId: number, input: unknown): void {
   if (typeof input !== 'string') throw new Error('Invalid link')
   const link = parseSourceLink(input)
   if ('error' in link) throw new Error(link.error)
+  if (link.type === 'adobe') throw new Error('Add Adobe kits from Add Fonts; their families are linked automatically.')
   const db = getDb()
   const dupe = db.prepare('SELECT 1 FROM sources WHERE family_id = ? AND type = ? AND url = ?').get(familyId, link.type, link.url)
   if (dupe) throw new Error('This family already has that link')

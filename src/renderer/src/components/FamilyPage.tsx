@@ -504,6 +504,11 @@ export function FamilyPage(p: Props) {
                     {s.url.replace(/^https:\/\//, '')}
                   </a>
                 )}
+                {s.cssName && (
+                  <div className="source-css">
+                    font-family: “{s.cssName}”
+                  </div>
+                )}
                 {(s.ref || s.version) && (
                   <div className="cell-sub">{[s.ref, s.version].filter(Boolean).join(' · ')}</div>
                 )}

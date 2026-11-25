@@ -77,7 +77,7 @@ export function listFamilies(): FamilySummary[] {
   const remoteRows = db
     .prepare(
       `SELECT a.style_id, a.path, src.meta FROM assets a JOIN sources src ON src.id = a.source_id
-       WHERE a.storage = 'remote'`
+       WHERE a.storage = 'remote' AND a.missing = 0`
     )
     .all() as { style_id: number; path: string; meta: string }[]
   const remoteByStyle = new Map<number, { cssUrl: string; family: string }>()
@@ -214,7 +214,9 @@ export function getFamily(familyId: number): FamilyDetail | null {
       repoUrl: s.repo_url,
       ref: s.ref,
       version: s.version,
-      isReference: Boolean(JSON.parse(s.meta).reference) && s.asset_count === 0
+      isReference: Boolean(JSON.parse(s.meta).reference) && s.asset_count === 0,
+      cssName:
+        s.type === 'adobe' || s.type === 'google' ? ((JSON.parse(s.meta) as { family?: string }).family ?? undefined) : undefined
     })
   )
 

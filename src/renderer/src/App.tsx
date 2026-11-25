@@ -5,6 +5,7 @@ import { Toolbar, type Layout, type SelectionAction } from './components/Toolbar
 import { FamilyGrid, FamilyRows } from './components/FamilyGrid'
 import { AddDialog, MergeDialog, PromptDialog, SystemDialog, TagDialog } from './components/Dialogs'
 import { FamilyPage } from './components/FamilyPage'
+import { AdobeKits } from './components/AdobeKits'
 import { systemTheme, useApplyTheme, type Theme } from './theme'
 
 const api = window.fontlib
@@ -16,7 +17,7 @@ type Dialog =
   | { kind: 'prompt'; props: Omit<React.ComponentProps<typeof PromptDialog>, 'onCancel'> }
   | { kind: 'tags'; title: string; familyIds: number[]; mode: 'set' | 'add'; initial: string[]; allTags: string[] }
   | { kind: 'merge'; familyIds: number[] }
-  | { kind: 'add' }
+  | { kind: 'add'; initialUrl?: string }
   | { kind: 'system' }
 
 function summarize(r: ImportResult): string {
@@ -433,6 +434,8 @@ function Library({ initial }: { initial: Settings }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [dialog, selected, visible, openFamily])
 
+  const isAdobeView = view.kind === 'source' && view.source === 'adobe'
+
   const onDrop = (e: React.DragEvent): void => {
     if (!e.dataTransfer.types.includes('Files')) return
     e.preventDefault()
@@ -525,7 +528,28 @@ function Library({ initial }: { initial: Settings }) {
               onSelectionAction={selectionAction}
             />
             <section className="content">
-              {loaded && families.length === 0 ? (
+              {isAdobeView && (
+                <AdobeKits
+                  revision={revision}
+                  act={act}
+                  onStatus={showStatus}
+                  onAddKit={() => setDialog({ kind: 'add' })}
+                  onAddFamilies={(url) => setDialog({ kind: 'add', initialUrl: url })}
+                  onRename={(kit) =>
+                    prompt({
+                      title: 'Rename Kit',
+                      label: 'Use the web project’s name from Adobe Fonts, or any name you like.',
+                      initial: kit.name,
+                      confirmLabel: 'Rename',
+                      onSubmit: (name) => {
+                        setDialog(null)
+                        act(() => api.adobe.rename(kit.id, name))
+                      }
+                    })
+                  }
+                />
+              )}
+              {isAdobeView && visible.length === 0 ? null : loaded && families.length === 0 ? (
                 <div className="empty">
                   <p className="empty-title">Your library is empty</p>
                   <p className="empty-body">Drop font files, folders or zips here, or use Add Fonts.</p>
@@ -580,6 +604,7 @@ function Library({ initial }: { initial: Settings }) {
       )}
       {dialog?.kind === 'add' && (
         <AddDialog
+          initialUrl={dialog.initialUrl}
           onCancel={() => setDialog(null)}
           onChooseFiles={() => {
             setDialog(null)

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type {
+  AdobeKit,
   GitHubFile,
   GitHubImportResult,
   GitHubPreview,
@@ -243,6 +244,8 @@ export function MergeDialog(p: MergeProps) {
 }
 
 interface AddProps {
+  /** Prefills the link field (e.g. "Add Families…" on a saved Adobe kit). */
+  initialUrl?: string
   onChooseFiles(): void
   onSystemFonts(): void
   /** Called after a Google family is added, with its id and name. */
@@ -258,6 +261,7 @@ type AddPhase =
   | { kind: 'google'; preview: GooglePreview }
   | { kind: 'adding'; preview: GooglePreview }
   | { kind: 'github'; preview: GitHubPreview; importing: boolean }
+  | { kind: 'adobe'; kit: AdobeKit; importing: boolean }
   | { kind: 'error'; message: string }
 
 function parseLinkType(url: string): string | null {
@@ -271,7 +275,7 @@ function errorText(e: unknown): string {
 
 /** The single entry point for adding fonts: paste a link, or choose files. */
 export function AddDialog(p: AddProps) {
-  const [url, setUrl] = useState('')
+  const [url, setUrl] = useState(p.initialUrl ?? '')
   const [phase, setPhase] = useState<AddPhase>({ kind: 'idle' })
 
   // Look the link up as soon as it parses (debounced while typing).
@@ -286,7 +290,12 @@ export function AddDialog(p: AddProps) {
     let alive = true
     const t = window.setTimeout(() => {
       setPhase({ kind: 'looking' })
-      if (link.type === 'github') {
+      if (link.type === 'adobe') {
+        window.fontlib.adobe.preview(value).then(
+          (kit) => alive && setPhase({ kind: 'adobe', kit, importing: false }),
+          (e) => alive && setPhase({ kind: 'error', message: errorText(e) })
+        )
+      } else if (link.type === 'github') {
         window.fontlib.github.lookup(value).then(
           (preview) => alive && setPhase({ kind: 'github', preview, importing: false }),
           (e) => alive && setPhase({ kind: 'error', message: errorText(e) })
@@ -328,12 +337,24 @@ export function AddDialog(p: AddProps) {
     }
   }
 
+  const addAdobe = async (cssNames: string[]): Promise<void> => {
+    if (phase.kind !== 'adobe') return
+    const kit = phase.kit
+    setPhase({ kind: 'adobe', kit, importing: true })
+    try {
+      const result = await window.fontlib.adobe.add(url.trim(), cssNames)
+      p.onImported(result, kit.name)
+    } catch (e) {
+      setPhase({ kind: 'error', message: errorText(e) })
+    }
+  }
+
   const preview = phase.kind === 'google' || phase.kind === 'adding' ? phase.preview : null
 
   return (
     <Modal onCancel={p.onCancel}>
       <form
-        className={'add-dialog' + (phase.kind === 'github' ? ' is-wide' : '')}
+        className={'add-dialog' + (phase.kind === 'github' || phase.kind === 'adobe' ? ' is-wide' : '')}
         onSubmit={(e) => {
           e.preventDefault()
           add()
@@ -344,7 +365,7 @@ export function AddDialog(p: AddProps) {
           className="field modal-input"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="Paste a Google Fonts or GitHub link"
+          placeholder="Paste a Google Fonts, GitHub or Adobe Fonts kit link"
           autoFocus
           spellCheck={false}
         />
@@ -352,20 +373,24 @@ export function AddDialog(p: AddProps) {
         <div className="add-result">
           {phase.kind === 'idle' && (
             <div className="modal-hint">
-              A Google Fonts specimen link (fonts.google.com/specimen/…), a css2 link, or a GitHub repository.
+              A Google Fonts specimen link (fonts.google.com/specimen/…), a GitHub repository, or an Adobe Fonts web
+              project link (use.typekit.net/….css).
             </div>
           )}
           {phase.kind === 'looking' && (
             <div className="modal-hint">
               {parseLinkType(url) === 'github'
                 ? 'Reading the repository and its latest release (release zips are downloaded to list their contents)…'
-                : 'Reading family metadata…'}
+                : parseLinkType(url) === 'adobe'
+                  ? 'Reading the web project…'
+                  : 'Reading family metadata…'}
             </div>
           )}
           {phase.kind === 'error' && <div className="add-error">{phase.message}</div>}
           {phase.kind === 'github' && (
             <GitHubPicker preview={phase.preview} busy={phase.importing} onImport={importGitHub} />
           )}
+          {phase.kind === 'adobe' && <AdobePicker kit={phase.kit} busy={phase.importing} onAdd={addAdobe} />}
           {preview && <GoogleCard preview={preview} />}
         </div>
 
@@ -380,7 +405,7 @@ export function AddDialog(p: AddProps) {
           <button type="button" className="button" onClick={p.onCancel}>
             Cancel
           </button>
-          {phase.kind !== 'github' && (
+          {phase.kind !== 'github' && phase.kind !== 'adobe' && (
             <button type="submit" className="button button-primary" disabled={phase.kind !== 'google'}>
               {phase.kind === 'adding' ? 'Adding…' : 'Add to Library'}
             </button>
@@ -725,4 +750,82 @@ export function SystemDialog(p: SystemProps) {
       </div>
     </Modal>
   )
+}
+
+/** The families in an Adobe kit, to choose which to add. */
+function AdobePicker({ kit, busy, onAdd }: { kit: AdobeKit; busy: boolean; onAdd(cssNames: string[]): void }) {
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(kit.families.filter((f) => f.familyId === null).map((f) => f.cssName))
+  )
+  const pending = kit.families.filter((f) => f.familyId === null)
+  return (
+    <div className="gh">
+      <div className="gh-head">
+        <div className="gh-title">{kit.name}</div>
+        <div className="cell-sub">
+          {kit.families.length} {kit.families.length === 1 ? 'family' : 'families'} in this web project
+          {kit.syncedAt ? ' · already saved; adding more families also syncs it' : ''}
+        </div>
+      </div>
+      <div className="gh-list">
+        {kit.families.map((f) => {
+          const added = f.familyId !== null
+          return (
+            <label key={f.cssName} className={'system-row' + (added ? ' is-added' : '')}>
+              <input
+                type="checkbox"
+                disabled={added}
+                checked={added || selected.has(f.cssName)}
+                onChange={(e) =>
+                  setSelected((cur) => {
+                    const next = new Set(cur)
+                    e.target.checked ? next.add(f.cssName) : next.delete(f.cssName)
+                    return next
+                  })
+                }
+              />
+              <div className="system-name">
+                <AdobeSample kitUrl={kit.url} cssName={f.cssName} text={f.displayName} />
+                <div className="cell-sub">
+                  font-family: {f.cssName} · {f.styleCount} {f.styleCount === 1 ? 'style' : 'styles'}
+                </div>
+              </div>
+              {added && <span className="mark">In Library</span>}
+            </label>
+          )
+        })}
+      </div>
+      <div className="modal-hint">Adobe families are links only: previews load through the kit, and no files are downloaded.</div>
+      <div className="modal-actions gh-actions">
+        <span className="cell-sub gh-count">
+          {pending.length === 0 ? 'Every family in this kit is in your library.' : `${selected.size} selected`}
+        </span>
+        <button
+          type="button"
+          className="button button-primary"
+          disabled={busy || (selected.size === 0 && kit.syncedAt === null)}
+          onClick={() => onAdd([...selected])}
+        >
+          {busy ? 'Adding…' : selected.size ? `Add ${selected.size} ${selected.size === 1 ? 'Family' : 'Families'}` : 'Save Kit'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** A family name set in its Adobe font, loaded through the kit stylesheet. */
+export function AdobeSample({ kitUrl, cssName, text, size = 22 }: { kitUrl: string; cssName: string; text: string; size?: number }) {
+  const style: StyleSummary = {
+    id: -1,
+    postscriptName: '',
+    styleName: 'Regular',
+    weight: 400,
+    italic: false,
+    width: 5,
+    isVariable: false,
+    axes: [],
+    assetId: null,
+    remote: { cssUrl: kitUrl, family: cssName, weight: 400, italic: false }
+  }
+  return <Specimen style={style} text={text} size={size} />
 }

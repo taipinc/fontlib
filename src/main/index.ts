@@ -4,6 +4,7 @@ import { IPC, type AppInfo, type MenuItem, type Settings } from '@shared/api'
 import { getDb } from './db'
 import { importPaths } from './importer'
 import { backfillOriginFamilies, getFamily, getGlyphs, getSettings, listFamilies, setSettings } from './library'
+import { addFromKit, listKits, previewKit, removeKit, renameKit, syncKit } from './adobe'
 import { importGitHub, lookupGitHub } from './github'
 import { addSystemFamilies, listSystemFamilies, verifySystemAssets } from './system'
 import { addGoogleFamily, lookupGoogle } from './google'
@@ -158,6 +159,27 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.glyphs, (_e, id: number) => getGlyphs(id))
+  ipcMain.handle(IPC.adobeKits, () => listKits())
+  ipcMain.handle(IPC.adobePreview, (_e, url: unknown) => {
+    if (typeof url !== 'string') throw new Error('Invalid link')
+    return previewKit(url)
+  })
+  ipcMain.handle(IPC.adobeAdd, (_e, url: unknown, names: unknown) => {
+    if (typeof url !== 'string') throw new Error('Invalid link')
+    return addFromKit(url, names)
+  })
+  ipcMain.handle(IPC.adobeSync, (_e, id: number) => syncKit(id))
+  ipcMain.handle(IPC.adobeRename, (_e, id: number, name: unknown) => renameKit(id, name))
+  ipcMain.handle(IPC.adobeRemove, async (event, id: number) => {
+    const ok = await confirm(
+      event.sender,
+      'Remove this Adobe kit?',
+      'Families added only from this kit are removed from your library. Your Adobe Fonts project is not changed.',
+      'Remove'
+    )
+    if (ok) removeKit(id)
+    return ok
+  })
   ipcMain.handle(IPC.systemList, () => listSystemFamilies())
   ipcMain.handle(IPC.systemAdd, (_e, names: unknown) => addSystemFamilies(names))
   ipcMain.handle(IPC.githubLookup, async (_e, url: unknown) => {

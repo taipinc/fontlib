@@ -3,6 +3,7 @@
 export type ParsedLink =
   | { type: 'google'; url: string; family: string; slug: string }
   | { type: 'github'; url: string; owner: string; repo: string }
+  | { type: 'adobe'; url: string; kitId: string }
 
 /** google/fonts directory naming: lowercase, letters and digits only ("Noto Sans JP" → "notosansjp"). */
 export function googleSlug(family: string): string {
@@ -50,5 +51,16 @@ export function parseSourceLink(input: string): ParsedLink | { error: string } {
     return { type: 'github', url: `https://github.com/${owner}/${name}`, owner, repo: name }
   }
 
-  return { error: 'Only Google Fonts and GitHub links are supported.' }
+  if (host === 'use.typekit.net') {
+    const m = url.pathname.match(/^\/([a-z0-9]+)\.css$/i)
+    if (!m) return { error: 'Paste the Adobe Fonts web project link, like https://use.typekit.net/abc1234.css' }
+    const kitId = m[1].toLowerCase()
+    return { type: 'adobe', url: `https://use.typekit.net/${kitId}.css`, kitId }
+  }
+
+  if (host === 'fonts.adobe.com') {
+    return { error: 'Paste the web project’s CSS link (https://use.typekit.net/….css) from Adobe Fonts → Web Projects.' }
+  }
+
+  return { error: 'Only Google Fonts, GitHub and Adobe Fonts (use.typekit.net) links are supported.' }
 }

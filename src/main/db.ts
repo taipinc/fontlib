@@ -126,6 +126,18 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE families ADD COLUMN default_style_id INTEGER REFERENCES styles(id) ON DELETE SET NULL;
   ALTER TABLE families ADD COLUMN default_variation TEXT;
+  `,
+  // v4: Adobe Fonts web project kits (CSS links). Families stay link-only.
+  `
+  CREATE TABLE adobe_kits (
+    id         INTEGER PRIMARY KEY,
+    kit_id     TEXT NOT NULL UNIQUE,
+    url        TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    families   TEXT NOT NULL DEFAULT '[]',
+    synced_at  TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
   `
 ]
 

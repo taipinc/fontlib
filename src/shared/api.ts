@@ -38,6 +38,25 @@ export interface StyleSummary {
   previewUrl?: string
 }
 
+/** A saved Adobe Fonts web project (kit), read from its CSS link. */
+export interface AdobeKit {
+  id: number
+  kitId: string
+  url: string
+  name: string
+  syncedAt: string | null
+  families: AdobeKitFamily[]
+}
+
+export interface AdobeKitFamily {
+  /** The CSS font-family name to use in projects, e.g. "trade-gothic-next". */
+  cssName: string
+  displayName: string
+  styleCount: number
+  /** The library family it was added as, or null if not added yet. */
+  familyId: number | null
+}
+
 /** The characters a font covers, for the glyph map. */
 export interface GlyphInfo {
   codePoints: number[]
@@ -143,6 +162,8 @@ export interface SourceDetail {
   version: string | null
   /** True for a link added by hand to a family imported from files: no files come from it. */
   isReference: boolean
+  /** Adobe and Google: the CSS font-family name the web stylesheet declares. */
+  cssName?: string
 }
 
 export interface AssetDetail {
@@ -295,6 +316,18 @@ export interface FontLibApi {
     /** Adds the family (or attaches it to an existing one). Resolves with the family id. */
     add(url: string): Promise<number>
   }
+  adobe: {
+    kits(): Promise<AdobeKit[]>
+    /** Reads a kit link (saved or not) and lists its families. */
+    preview(url: string): Promise<AdobeKit>
+    /** Saves the kit if new and adds the chosen families (by CSS name). */
+    add(url: string, cssNames: string[]): Promise<GitHubImportResult>
+    /** Re-reads a saved kit and updates the families added from it. */
+    sync(id: number): Promise<GitHubImportResult>
+    rename(id: number, name: string): Promise<void>
+    /** Asks for confirmation, then forgets the kit and its link-only families. */
+    remove(id: number): Promise<boolean>
+  }
   system: {
     /** Scans installed fonts (cached for the session) and lists their families. */
     list(): Promise<SystemFamily[]>
@@ -335,6 +368,12 @@ export const IPC = {
   googleAdd: 'google:add',
   githubLookup: 'github:lookup',
   systemList: 'system:list',
+  adobeKits: 'adobe:kits',
+  adobePreview: 'adobe:preview',
+  adobeAdd: 'adobe:add',
+  adobeSync: 'adobe:sync',
+  adobeRename: 'adobe:rename',
+  adobeRemove: 'adobe:remove',
   glyphs: 'library:glyphs',
   systemAdd: 'system:add',
   libraryChanged: 'library:changed',
