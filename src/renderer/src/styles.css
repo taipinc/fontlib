@@ -795,3 +795,421 @@ button {
   margin: 4px 0 0 28px;
   width: calc(100% - 28px);
 }
+
+/* Family page */
+
+.family-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px 0 6px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.back-button span {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.back-button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.toolbar-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  -webkit-app-region: drag;
+}
+
+.family-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.family-main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.hero {
+  padding: 48px 40px 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+.specimen-wrap {
+  white-space: normal;
+  overflow-wrap: break-word;
+  overflow: visible;
+}
+
+.hero-specimen {
+  line-height: 1.1;
+  outline: none;
+  user-select: text;
+  cursor: text;
+}
+
+.hero-caption {
+  margin-top: 20px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.style-list-heading {
+  padding: 16px 20px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.style-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.style-row:hover .cell-action {
+  visibility: visible;
+}
+
+.style-row.is-current {
+  background: var(--bg-selected);
+}
+
+.style-meta {
+  width: 180px;
+  flex: none;
+  min-width: 0;
+}
+
+.style-ps {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.style-specimen {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Family page: side panel */
+
+.family-panel {
+  width: 300px;
+  flex: none;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  user-select: text;
+}
+
+.panel-section {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.panel-action {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.panel-action:hover {
+  color: var(--text);
+}
+
+.panel-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-height: 26px;
+}
+
+.panel-label {
+  width: 68px;
+  flex: none;
+  color: var(--text-muted);
+}
+
+.panel-value {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.panel-select {
+  width: 100%;
+  padding: 0 6px;
+}
+
+.panel-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.panel-gap {
+  height: 6px;
+}
+
+.muted {
+  color: var(--text-faint);
+}
+
+.inline-field {
+  width: 100%;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  outline: none;
+  font: inherit;
+  color: inherit;
+  resize: vertical;
+}
+
+.inline-field:hover {
+  background: var(--bg-hover);
+}
+
+.inline-field:focus {
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.inline-field::placeholder {
+  color: var(--text-faint);
+}
+
+.inline-field-multi {
+  width: calc(100% + 12px);
+  line-height: 1.45;
+  font-size: 12px;
+}
+
+.value-button {
+  max-width: 100%;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+}
+
+.value-button:hover {
+  background: var(--bg-hover);
+}
+
+.axis {
+  margin-top: 10px;
+}
+
+.axis-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.axis-value {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.axis input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.feature {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.feature:hover {
+  color: var(--text);
+}
+
+.feature.is-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.source + .source {
+  margin-top: 12px;
+}
+
+.source-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.source-name {
+  flex: 1;
+}
+
+.source-remove {
+  font-size: 11px;
+}
+
+.source-url {
+  display: block;
+  margin-top: 3px;
+  color: var(--text);
+  font-size: 12px;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.source-url:hover {
+  text-decoration-color: currentColor;
+}
+
+/* Controls are never selectable text, even inside selectable panels. */
+button,
+select,
+label {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.bar-button.is-active {
+  background: var(--bg-active);
+}
+
+/* Family page: static style + axes bar */
+
+.style-bar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 24px;
+  padding: 10px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.style-select {
+  min-width: 200px;
+  max-width: 320px;
+  padding: 0 8px;
+  font-weight: 500;
+}
+
+.style-bar .axis {
+  display: flex;
+  flex-direction: column;
+  width: 170px;
+  margin: 0;
+}
+
+.style-bar .axis-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.style-bar .axis input {
+  width: 100%;
+  margin: 4px 0 0;
+}
+
+/* Family page: collapsible panel section */
+
+.panel-disclosure {
+  width: 100%;
+  margin-bottom: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.panel-disclosure[aria-expanded='true'] {
+  margin-bottom: 10px;
+}
+
+.panel-disclosure:hover {
+  color: var(--text);
+}
+
+.disclosure {
+  display: inline-block;
+  width: 12px;
+  transition: none;
+}
+
+.disclosure.is-open {
+  transform: rotate(90deg);
+}
+
+.panel-count {
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+/* Family page: styles grouped by original family (merged families only) */
+
+.style-group-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 18px 20px 8px;
+  border-top: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.style-group .style-row {
+  padding-left: 40px;
+}

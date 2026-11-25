@@ -117,6 +117,10 @@ const MIGRATIONS: string[] = [
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+  `,
+  // v2: the font's own family name at import, so merged families can show where each style came from.
+  `
+  ALTER TABLE styles ADD COLUMN origin_family TEXT;
   `
 ]
 

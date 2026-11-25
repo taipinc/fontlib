@@ -142,9 +142,9 @@ export async function importPaths(paths: string[]): Promise<ImportResult> {
     styleHasStored: db.prepare("SELECT 1 FROM assets WHERE style_id = ? AND storage = 'stored' LIMIT 1"),
     insertStyle: db.prepare(`
       INSERT INTO styles (family_id, postscript_name, full_name, style_name, weight, italic, width,
-                          is_variable, axes, features, scripts, glyph_count, version)
+                          is_variable, axes, features, scripts, glyph_count, version, origin_family)
       VALUES (@familyId, @postscriptName, @fullName, @styleName, @weight, @italic, @width,
-              @isVariable, @axes, @features, @scripts, @glyphCount, @version)`),
+              @isVariable, @axes, @features, @scripts, @glyphCount, @version, @originFamily)`),
     insertAsset: db.prepare(`
       INSERT INTO assets (style_id, source_id, kind, storage, path, collection_index, size, sha1)
       VALUES (?, ?, ?, 'stored', ?, ?, ?, ?)`)
@@ -212,7 +212,8 @@ export async function importPaths(paths: string[]): Promise<ImportResult> {
                 features: JSON.stringify(s.features),
                 scripts: JSON.stringify(s.scripts),
                 glyphCount: s.glyphCount,
-                version: s.version
+                version: s.version,
+                originFamily: s.familyName
               }).lastInsertRowid
             )
           if (!existingStyle) result.stylesAdded++

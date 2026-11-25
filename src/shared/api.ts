@@ -28,6 +28,8 @@ export interface StyleSummary {
   axes: Axis[]
   /** Asset id served at fontlib://asset/<id>, or null if no loadable file. */
   assetId: number | null
+  /** The family name the font file itself declares; differs from the family after a merge. */
+  originFamily?: string
 }
 
 export interface FamilySummary {
@@ -44,6 +46,63 @@ export interface FamilySummary {
   defaultStyleId: number | null
   createdAt: string
 }
+
+export interface SourceDetail {
+  id: number
+  type: SourceType
+  url: string | null
+  repoUrl: string | null
+  ref: string | null
+  version: string | null
+  /** True for a link added by hand to a family imported from files: no files come from it. */
+  isReference: boolean
+}
+
+export interface AssetDetail {
+  id: number
+  kind: string
+  storage: 'stored' | 'system-path' | 'remote'
+  /** Display path (relative to the library for stored files). */
+  path: string
+  size: number | null
+  sourceType: SourceType
+  missing: boolean
+}
+
+export interface StyleDetail extends StyleSummary {
+  fullName: string | null
+  features: string[]
+  scripts: string[]
+  glyphCount: number | null
+  version: string | null
+  assets: AssetDetail[]
+}
+
+export interface FamilyDetail {
+  id: number
+  name: string
+  designer: string | null
+  foundry: string | null
+  category: string | null
+  notes: string | null
+  license: string | null
+  licenseUrl: string | null
+  tags: string[]
+  sources: SourceDetail[]
+  styles: StyleDetail[]
+  defaultStyleId: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type FamilyPatch = Partial<{
+  name: string
+  designer: string | null
+  foundry: string | null
+  notes: string | null
+  license: string | null
+  licenseUrl: string | null
+}>
 
 export interface ImportResult {
   familiesAdded: number
@@ -84,6 +143,8 @@ export type Settings = Partial<{
   previewText: string
   previewSize: number
   layout: 'grid' | 'rows'
+  /** Whether the family page's details panel is shown. */
+  familyPanel: boolean
 }>
 
 export interface FontLibApi {
@@ -99,6 +160,15 @@ export interface FontLibApi {
     /** Asks for confirmation, then removes the family. Resolves true if removed. */
     removeFamily(familyId: number): Promise<boolean>
     revealFamily(familyId: number): Promise<void>
+    family(familyId: number): Promise<FamilyDetail | null>
+    updateFamily(familyId: number, patch: FamilyPatch): Promise<void>
+    /** Attaches a Google Fonts or GitHub URL to a family as a reference source. */
+    addSourceLink(familyId: number, url: string): Promise<void>
+    /** Removes a reference source (sources that supplied files cannot be removed). */
+    removeSourceLink(sourceId: number): Promise<void>
+    /** Moves a style into another family (by id) or into a new family (by name). Returns the target family id. */
+    moveStyle(styleId: number, target: { familyId: number } | { newName: string }): Promise<number>
+    revealAsset(assetId: number): Promise<void>
   }
   organize: {
     tags(): Promise<TagSummary[]>
@@ -136,6 +206,12 @@ export const IPC = {
   importPaths: 'library:import-paths',
   removeFamily: 'library:remove-family',
   revealFamily: 'library:reveal-family',
+  family: 'library:family',
+  updateFamily: 'library:update-family',
+  addSourceLink: 'library:add-source-link',
+  removeSourceLink: 'library:remove-source-link',
+  moveStyle: 'library:move-style',
+  revealAsset: 'library:reveal-asset',
   tags: 'organize:tags',
   setFamilyTags: 'organize:set-family-tags',
   setCategory: 'organize:set-category',

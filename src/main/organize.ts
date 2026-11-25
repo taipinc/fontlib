@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, rmdirSync, unlinkSync } from 'node:fs'
 import { dirname, resolve, sep } from 'node:path'
 import type { CollectionKind, CollectionSummary, TagSummary } from '@shared/api'
+import { parseSourceLink } from '@shared/links'
 import { getDb } from './db'
 import { fontsPath } from './paths'
 
@@ -281,4 +282,129 @@ export function mergeFamilies(familyIds: unknown, targetId: number, newName: unk
     }
     db.prepare(`UPDATE families SET updated_at = ${now} WHERE id = ?`).run(targetId)
   })()
+}
+
+// Family page edits
+
+const TEXT_FIELDS: Record<string, string> = {
+  designer: 'designer',
+  foundry: 'foundry',
+  notes: 'notes',
+  license: 'license',
+  licenseUrl: 'license_url'
+}
+
+export function updateFamily(familyId: number, patch: unknown): void {
+  if (!patch || typeof patch !== 'object') throw new Error('Invalid changes')
+  const db = getDb()
+  db.transaction(() => {
+    for (const [key, raw] of Object.entries(patch as Record<string, unknown>)) {
+      if (key === 'name') {
+        const name = cleanName(raw)
+        const clash = db.prepare('SELECT 1 FROM families WHERE name = ? COLLATE NOCASE AND id != ?').get(name, familyId)
+        if (clash) throw new Error(`A family named “${name}” already exists`)
+        db.prepare('UPDATE families SET name = ? WHERE id = ?').run(name, familyId)
+      } else if (key in TEXT_FIELDS) {
+        if (raw !== null && typeof raw !== 'string') throw new Error(`Invalid ${key}`)
+        const value = typeof raw === 'string' && raw.trim() ? (key === 'notes' ? raw : raw.trim()) : null
+        db.prepare(`UPDATE families SET ${TEXT_FIELDS[key]} = ? WHERE id = ?`).run(value, familyId)
+      }
+    }
+    db.prepare(`UPDATE families SET updated_at = ${now} WHERE id = ?`).run(familyId)
+  })()
+}
+
+export function addSourceLink(familyId: number, input: unknown): void {
+  if (typeof input !== 'string') throw new Error('Invalid link')
+  const link = parseSourceLink(input)
+  if ('error' in link) throw new Error(link.error)
+  const db = getDb()
+  const dupe = db.prepare('SELECT 1 FROM sources WHERE family_id = ? AND type = ? AND url = ?').get(familyId, link.type, link.url)
+  if (dupe) throw new Error('This family already has that link')
+  const meta =
+    link.type === 'google'
+      ? { reference: true, family: link.family, slug: link.slug }
+      : { reference: true, owner: link.owner, repo: link.repo }
+  db.prepare('INSERT INTO sources (family_id, type, url, repo_url, meta) VALUES (?, ?, ?, ?, ?)').run(
+    familyId,
+    link.type,
+    link.url,
+    link.type === 'github' ? link.url : null,
+    JSON.stringify(meta)
+  )
+}
+
+export function removeSourceLink(sourceId: number): void {
+  const db = getDb()
+  const used = db.prepare('SELECT 1 FROM assets WHERE source_id = ? LIMIT 1').get(sourceId)
+  if (used) throw new Error('This source supplied font files and can’t be removed on its own')
+  db.prepare('DELETE FROM sources WHERE id = ?').run(sourceId)
+}
+
+/** Moves one style (and its files) to another family, creating it if a new name is given. */
+export function moveStyle(styleId: number, target: unknown): number {
+  const db = getDb()
+  const style = db.prepare('SELECT id, family_id, postscript_name FROM styles WHERE id = ?').get(styleId) as
+    | { id: number; family_id: number; postscript_name: string }
+    | undefined
+  if (!style) throw new Error('Style not found')
+  const t = target as { familyId?: unknown; newName?: unknown }
+
+  return db.transaction(() => {
+    let targetId: number
+    if (typeof t?.familyId === 'number') {
+      targetId = t.familyId
+      if (targetId === style.family_id) return targetId
+      if (db.prepare('SELECT 1 FROM styles WHERE family_id = ? AND postscript_name = ?').get(targetId, style.postscript_name)) {
+        throw new Error('That family already has a style with the same PostScript name')
+      }
+    } else {
+      const name = cleanName(t?.newName)
+      if (db.prepare('SELECT 1 FROM families WHERE name = ? COLLATE NOCASE').get(name)) {
+        throw new Error(`A family named “${name}” already exists`)
+      }
+      const from = db.prepare('SELECT designer, foundry, license, license_url FROM families WHERE id = ?').get(style.family_id) as Record<string, string | null>
+      targetId = Number(
+        db
+          .prepare('INSERT INTO families (name, designer, foundry, license, license_url) VALUES (?, ?, ?, ?, ?)')
+          .run(name, from.designer, from.foundry, from.license, from.license_url).lastInsertRowid
+      )
+    }
+
+    // Each asset's source must belong to the target family: reuse a matching one or copy it.
+    const assets = db.prepare('SELECT id, source_id FROM assets WHERE style_id = ?').all(styleId) as { id: number; source_id: number }[]
+    for (const a of assets) {
+      const src = db.prepare('SELECT * FROM sources WHERE id = ?').get(a.source_id) as Record<string, unknown>
+      const match = db
+        .prepare("SELECT id FROM sources WHERE family_id = ? AND type = ? AND COALESCE(url, '') = COALESCE(?, '')")
+        .get(targetId, src.type, src.url) as { id: number } | undefined
+      const newSource =
+        match?.id ??
+        Number(
+          db
+            .prepare('INSERT INTO sources (family_id, type, url, repo_url, ref, version, meta) VALUES (?, ?, ?, ?, ?, ?, ?)')
+            .run(targetId, src.type, src.url, src.repo_url, src.ref, src.version, src.meta).lastInsertRowid
+        )
+      db.prepare('UPDATE assets SET source_id = ? WHERE id = ?').run(newSource, a.id)
+    }
+    db.prepare('UPDATE styles SET family_id = ? WHERE id = ?').run(targetId, styleId)
+
+    // Tidy the old family: drop sources left without files (except hand-added links), and the family if empty.
+    db.prepare(
+      `DELETE FROM sources WHERE family_id = ? AND json_extract(meta, '$.reference') IS NOT 1
+         AND id NOT IN (SELECT source_id FROM assets)`
+    ).run(style.family_id)
+    const left = db.prepare('SELECT COUNT(*) AS n FROM styles WHERE family_id = ?').get(style.family_id) as { n: number }
+    if (left.n === 0) db.prepare('DELETE FROM families WHERE id = ?').run(style.family_id)
+    db.prepare(`UPDATE families SET updated_at = ${now} WHERE id IN (?, ?)`).run(style.family_id, targetId)
+    return targetId
+  })()
+}
+
+export function assetFilePath(assetId: number): string | null {
+  const row = getDb().prepare('SELECT storage, path FROM assets WHERE id = ?').get(assetId) as
+    | { storage: string; path: string }
+    | undefined
+  if (!row || row.storage === 'remote') return null
+  return row.storage === 'stored' ? resolve(fontsPath(), row.path) : row.path
 }

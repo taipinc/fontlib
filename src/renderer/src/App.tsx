@@ -4,6 +4,7 @@ import { Sidebar, type View } from './components/Sidebar'
 import { Toolbar, type Layout, type SelectionAction } from './components/Toolbar'
 import { FamilyGrid, FamilyRows } from './components/FamilyGrid'
 import { MergeDialog, PromptDialog, TagDialog } from './components/Dialogs'
+import { FamilyPage } from './components/FamilyPage'
 import { systemTheme, useApplyTheme, type Theme } from './theme'
 
 const api = window.fontlib
@@ -41,6 +42,7 @@ function Library({ initial }: { initial: Settings }) {
   const [layout, setLayout] = useState<Layout>(initial.layout ?? 'grid')
   const [previewText, setPreviewText] = useState(initial.previewText ?? 'Aa 123')
   const [size, setSize] = useState(initial.previewSize ?? 72)
+  const [familyPanel, setFamilyPanel] = useState(initial.familyPanel ?? false)
   const [view, setView] = useState<View>({ kind: 'all' })
   const [search, setSearch] = useState('')
   const [families, setFamilies] = useState<FamilySummary[]>([])
@@ -50,6 +52,8 @@ function Library({ initial }: { initial: Settings }) {
   const [busy, setBusy] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [dialog, setDialog] = useState<Dialog | null>(null)
+  const [openFamily, setOpenFamily] = useState<number | null>(null)
+  const [revision, setRevision] = useState(0)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const anchor = useRef<number | null>(null)
   const statusTimer = useRef<number | undefined>(undefined)
@@ -58,15 +62,19 @@ function Library({ initial }: { initial: Settings }) {
 
   // Persist display settings (debounced so typing in the preview field doesn't spam writes).
   useEffect(() => {
-    const t = window.setTimeout(() => api.settings.set({ theme, layout, previewText, previewSize: size }), 300)
+    const t = window.setTimeout(
+      () => api.settings.set({ theme, layout, previewText, previewSize: size, familyPanel }),
+      300
+    )
     return () => window.clearTimeout(t)
-  }, [theme, layout, previewText, size])
+  }, [theme, layout, previewText, size, familyPanel])
 
   const refresh = useCallback(async () => {
     const [f, c] = await Promise.all([api.library.families(), api.organize.collections()])
     setFamilies(f)
     setCollections(c)
     setLoaded(true)
+    setRevision((r) => r + 1)
   }, [])
 
   useEffect(() => {
@@ -169,7 +177,7 @@ function Library({ initial }: { initial: Settings }) {
   const onCellClick = (f: FamilySummary, e: React.MouseEvent): void => {
     if (e.shiftKey) return selectRange(f)
     if (e.metaKey || selected.size > 0) return toggle(f)
-    // Plain click will open the family page (next step).
+    setOpenFamily(f.id)
   }
 
   const onToggle = (f: FamilySummary, e: React.MouseEvent): void => (e.shiftKey ? selectRange(f) : toggle(f))
@@ -261,6 +269,8 @@ function Library({ initial }: { initial: Settings }) {
     }
     const inCollection = view.kind === 'collection' ? collections.find((c) => c.id === view.id) : undefined
     const items: MenuItem[] = [
+      { id: 'open', label: 'Open' },
+      { type: 'separator' },
       { label: 'Category', submenu: categoryItems(f.category) },
       { label: 'Add to Collection', submenu: collectionItems([f.id]) },
       ...(inCollection ? [{ id: 'col-remove', label: `Remove from “${inCollection.name}”` }] : []),
@@ -277,6 +287,7 @@ function Library({ initial }: { initial: Settings }) {
 
     const choice = await api.ui.contextMenu(items)
     if (applyChoice(choice, [f.id]) || !choice) return
+    if (choice === 'open') return setOpenFamily(f.id)
     if (choice === 'col-remove' && inCollection)
       return act(() => api.organize.removeFromCollection(inCollection.id, [f.id]))
     if (choice === 'tags') return openTags([f.id], 'set')
@@ -374,7 +385,11 @@ function Library({ initial }: { initial: Settings }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (dialog) return
-      const typing = (e.target as HTMLElement).closest('input, textarea')
+      const typing = (e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')
+      if (openFamily !== null) {
+        if (e.key === 'Escape' && !typing) setOpenFamily(null)
+        return
+      }
       if (e.key === 'Escape' && selected.size) clearSelection()
       if (e.key === 'a' && e.metaKey && !typing) {
         e.preventDefault()
@@ -383,7 +398,7 @@ function Library({ initial }: { initial: Settings }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [dialog, selected, visible])
+  }, [dialog, selected, visible, openFamily])
 
   const onDrop = (e: React.DragEvent): void => {
     if (!e.dataTransfer.types.includes('Files')) return
@@ -404,7 +419,10 @@ function Library({ initial }: { initial: Settings }) {
     <div className="app">
       <Sidebar
         view={view}
-        onSelect={setView}
+        onSelect={(v) => {
+          setView(v)
+          setOpenFamily(null)
+        }}
         families={families}
         collections={collections}
         status={status}
@@ -428,56 +446,84 @@ function Library({ initial }: { initial: Settings }) {
         }}
         onDrop={onDrop}
       >
-        <Toolbar
-          count={visible.length}
-          search={search}
-          onSearch={setSearch}
-          layout={layout}
-          onLayout={setLayout}
-          previewText={previewText}
-          onPreviewText={setPreviewText}
-          size={size}
-          onSize={setSize}
-          theme={theme}
-          onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
-          selectionCount={selected.size}
-          collectionName={
-            view.kind === 'collection' ? (collections.find((c) => c.id === view.id)?.name ?? null) : null
-          }
-          onSelectionAction={selectionAction}
-        />
-        <section className="content">
-          {loaded && families.length === 0 ? (
-            <div className="empty">
-              <p className="empty-title">Your library is empty</p>
-              <p className="empty-body">Drop font files, folders or zips here, or use Add Fonts.</p>
-            </div>
-          ) : loaded && visible.length === 0 ? (
-            <div className="empty">
-              <p className="empty-body">{emptyMessage}</p>
-            </div>
-          ) : layout === 'grid' ? (
-            <FamilyGrid
-              families={visible}
-              text={previewText || 'Aa 123'}
+        {openFamily !== null ? (
+          <FamilyPage
+            familyId={openFamily}
+            revision={revision}
+            families={families}
+            theme={theme}
+            onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+            onBack={() => setOpenFamily(null)}
+            act={act}
+            onOpenFamily={setOpenFamily}
+            panelOpen={familyPanel}
+            onTogglePanel={() => setFamilyPanel((v) => !v)}
+            onCategoryMenu={async (id, current) => applyChoice(await api.ui.contextMenu(categoryItems(current)), [id])}
+            onEditTags={(id) => openTags([id], 'set')}
+            onPrompt={(opts) =>
+              prompt({
+                ...opts,
+                onSubmit: (v) => {
+                  setDialog(null)
+                  opts.onSubmit(v)
+                }
+              })
+            }
+          />
+        ) : (
+          <>
+            <Toolbar
+              count={visible.length}
+              search={search}
+              onSearch={setSearch}
+              layout={layout}
+              onLayout={setLayout}
+              previewText={previewText}
+              onPreviewText={setPreviewText}
               size={size}
-              selected={selected}
-              onMenu={familyMenu}
-              onClick={onCellClick}
-              onToggle={onToggle}
+              onSize={setSize}
+              theme={theme}
+              onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+              selectionCount={selected.size}
+              collectionName={
+                view.kind === 'collection' ? (collections.find((c) => c.id === view.id)?.name ?? null) : null
+              }
+              onSelectionAction={selectionAction}
             />
-          ) : (
-            <FamilyRows
-              families={visible}
-              text={previewText || 'The quick brown fox jumps over the lazy dog'}
-              size={size}
-              selected={selected}
-              onMenu={familyMenu}
-              onClick={onCellClick}
-              onToggle={onToggle}
-            />
-          )}
-        </section>
+            <section className="content">
+              {loaded && families.length === 0 ? (
+                <div className="empty">
+                  <p className="empty-title">Your library is empty</p>
+                  <p className="empty-body">Drop font files, folders or zips here, or use Add Fonts.</p>
+                </div>
+              ) : loaded && visible.length === 0 ? (
+                <div className="empty">
+                  <p className="empty-body">{emptyMessage}</p>
+                </div>
+              ) : layout === 'grid' ? (
+                <FamilyGrid
+                  families={visible}
+                  text={previewText || 'Aa 123'}
+                  size={size}
+                  selected={selected}
+                  onMenu={familyMenu}
+                  onClick={onCellClick}
+                  onToggle={onToggle}
+                />
+              ) : (
+                <FamilyRows
+                  families={visible}
+                  text={previewText || 'The quick brown fox jumps over the lazy dog'}
+                  size={size}
+                  selected={selected}
+                  onMenu={familyMenu}
+                  onClick={onCellClick}
+                  onToggle={onToggle}
+                />
+              )}
+            </section>
+          </>
+        )}
       </main>
 
       {dialog?.kind === 'prompt' && <PromptDialog {...dialog.props} onCancel={() => setDialog(null)} />}

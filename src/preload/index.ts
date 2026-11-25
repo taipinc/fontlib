@@ -14,7 +14,13 @@ const api: FontLibApi = {
         files.map((f) => webUtils.getPathForFile(f)).filter(Boolean)
       ),
     removeFamily: (id) => ipcRenderer.invoke(IPC.removeFamily, id),
-    revealFamily: (id) => ipcRenderer.invoke(IPC.revealFamily, id)
+    revealFamily: (id) => ipcRenderer.invoke(IPC.revealFamily, id),
+    family: (id) => ipcRenderer.invoke(IPC.family, id),
+    updateFamily: (id, patch) => ipcRenderer.invoke(IPC.updateFamily, id, patch),
+    addSourceLink: (id, url) => ipcRenderer.invoke(IPC.addSourceLink, id, url),
+    removeSourceLink: (id) => ipcRenderer.invoke(IPC.removeSourceLink, id),
+    moveStyle: (id, target) => ipcRenderer.invoke(IPC.moveStyle, id, target),
+    revealAsset: (id) => ipcRenderer.invoke(IPC.revealAsset, id)
   },
   organize: {
     tags: () => ipcRenderer.invoke(IPC.tags),

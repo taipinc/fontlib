@@ -1,5 +1,19 @@
-import type { Axis, FamilySummary, Settings, SourceType, StyleSummary } from '@shared/api'
+import type {
+  AssetDetail,
+  Axis,
+  FamilyDetail,
+  FamilySummary,
+  Settings,
+  SourceDetail,
+  SourceType,
+  StyleDetail,
+  StyleSummary
+} from '@shared/api'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { getDb } from './db'
+import { parseFontBuffer } from './parse'
+import { fontsPath } from './paths'
 
 interface StyleRow {
   id: number
@@ -12,6 +26,7 @@ interface StyleRow {
   is_variable: number
   axes: string
   asset_id: number | null
+  origin_family: string | null
 }
 
 /** Picks the style closest to Regular: upright, weight nearest 400, normal width. */
@@ -37,6 +52,7 @@ export function listFamilies(): FamilySummary[] {
   const styleRows = db
     .prepare(
       `SELECT s.id, s.family_id, s.postscript_name, s.style_name, s.weight, s.italic, s.width, s.is_variable, s.axes,
+              s.origin_family,
               (SELECT a.id FROM assets a WHERE a.style_id = s.id AND a.missing = 0
                ORDER BY CASE a.storage WHEN 'stored' THEN 0 WHEN 'system-path' THEN 1 ELSE 2 END LIMIT 1) AS asset_id
        FROM styles s
@@ -69,7 +85,8 @@ export function listFamilies(): FamilySummary[] {
       width: r.width,
       isVariable: r.is_variable === 1,
       axes: JSON.parse(r.axes) as Axis[],
-      assetId: r.asset_id
+      assetId: r.asset_id,
+      originFamily: r.origin_family ?? undefined
     })
     stylesByFamily.set(r.family_id, list)
   }
@@ -99,7 +116,7 @@ export function listFamilies(): FamilySummary[] {
   })
 }
 
-const SETTING_KEYS = new Set(['theme', 'previewText', 'previewSize', 'layout'])
+const SETTING_KEYS = new Set(['theme', 'previewText', 'previewSize', 'layout', 'familyPanel'])
 
 export function getSettings(): Settings {
   const rows = getDb().prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[]
@@ -116,6 +133,162 @@ export function setSettings(patch: Settings): void {
   db.transaction(() => {
     for (const [k, v] of Object.entries(patch)) {
       if (SETTING_KEYS.has(k) && v !== undefined) upsert.run(k, JSON.stringify(v))
+    }
+  })()
+}
+
+export function getFamily(familyId: number): FamilyDetail | null {
+  const db = getDb()
+  const f = db.prepare('SELECT * FROM families WHERE id = ?').get(familyId) as
+    | {
+        id: number
+        name: string
+        designer: string | null
+        foundry: string | null
+        category: string | null
+        notes: string | null
+        license: string | null
+        license_url: string | null
+        created_at: string
+        updated_at: string
+      }
+    | undefined
+  if (!f) return null
+
+  const summary = listFamilies().find((x) => x.id === familyId)!
+
+  const sources = (
+    db
+      .prepare(
+        `SELECT s.*, (SELECT COUNT(*) FROM assets a WHERE a.source_id = s.id) AS asset_count
+         FROM sources s WHERE s.family_id = ? ORDER BY s.created_at`
+      )
+      .all(familyId) as {
+      id: number
+      type: SourceType
+      url: string | null
+      repo_url: string | null
+      ref: string | null
+      version: string | null
+      meta: string
+      asset_count: number
+    }[]
+  ).map(
+    (s): SourceDetail => ({
+      id: s.id,
+      type: s.type,
+      url: s.url,
+      repoUrl: s.repo_url,
+      ref: s.ref,
+      version: s.version,
+      isReference: Boolean(JSON.parse(s.meta).reference) && s.asset_count === 0
+    })
+  )
+
+  const extra = new Map(
+    (
+      db
+        .prepare('SELECT id, full_name, features, scripts, glyph_count, version FROM styles WHERE family_id = ?')
+        .all(familyId) as {
+        id: number
+        full_name: string | null
+        features: string
+        scripts: string
+        glyph_count: number | null
+        version: string | null
+      }[]
+    ).map((r) => [r.id, r])
+  )
+
+  const assets = db
+    .prepare(
+      `SELECT a.id, a.style_id, a.kind, a.storage, a.path, a.size, a.missing, src.type AS source_type
+       FROM assets a JOIN sources src ON src.id = a.source_id JOIN styles s ON s.id = a.style_id
+       WHERE s.family_id = ?`
+    )
+    .all(familyId) as {
+    id: number
+    style_id: number
+    kind: string
+    storage: AssetDetail['storage']
+    path: string
+    size: number | null
+    missing: number
+    source_type: SourceType
+  }[]
+
+  const styles: StyleDetail[] = summary.styles.map((s) => {
+    const e = extra.get(s.id)!
+    return {
+      ...s,
+      fullName: e.full_name,
+      features: JSON.parse(e.features),
+      scripts: JSON.parse(e.scripts),
+      glyphCount: e.glyph_count,
+      version: e.version,
+      assets: assets
+        .filter((a) => a.style_id === s.id)
+        .map((a) => ({
+          id: a.id,
+          kind: a.kind,
+          storage: a.storage,
+          path: a.path,
+          size: a.size,
+          sourceType: a.source_type,
+          missing: a.missing === 1
+        }))
+    }
+  })
+
+  return {
+    id: f.id,
+    name: f.name,
+    designer: f.designer,
+    foundry: f.foundry,
+    category: f.category,
+    notes: f.notes,
+    license: f.license,
+    licenseUrl: f.license_url,
+    tags: summary.tags,
+    sources,
+    styles,
+    defaultStyleId: summary.defaultStyleId,
+    createdAt: f.created_at,
+    updatedAt: f.updated_at
+  }
+}
+
+/**
+ * Fills styles.origin_family for styles added before that column existed, by re-reading
+ * their font files (read-only). Runs at startup; does nothing once every style has a value.
+ */
+export function backfillOriginFamilies(): void {
+  const db = getDb()
+  const rows = db
+    .prepare(
+      `SELECT s.id, s.postscript_name, a.storage, a.path FROM styles s
+       JOIN assets a ON a.style_id = s.id
+       WHERE s.origin_family IS NULL AND a.storage IN ('stored','system-path')`
+    )
+    .all() as { id: number; postscript_name: string; storage: string; path: string }[]
+  if (rows.length === 0) return
+
+  const byFile = new Map<string, Map<string, string>>()
+  const update = db.prepare('UPDATE styles SET origin_family = ? WHERE id = ? AND origin_family IS NULL')
+  db.transaction(() => {
+    for (const r of rows) {
+      const file = r.storage === 'stored' ? resolve(fontsPath(), r.path) : r.path
+      if (!byFile.has(file)) {
+        const names = new Map<string, string>()
+        try {
+          for (const s of parseFontBuffer(readFileSync(file))) names.set(s.postscriptName, s.familyName)
+        } catch {
+          /* unreadable or missing file: leave this style without an origin */
+        }
+        byFile.set(file, names)
+      }
+      const origin = byFile.get(file)!.get(r.postscript_name)
+      if (origin) update.run(origin, r.id)
     }
   })()
 }

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { IPC, type AppInfo, type MenuItem, type Settings } from '@shared/api'
 import { getDb } from './db'
 import { importPaths } from './importer'
-import { getSettings, listFamilies, setSettings } from './library'
+import { backfillOriginFamilies, getFamily, getSettings, listFamilies, setSettings } from './library'
 import * as organize from './organize'
 import { libraryPath } from './paths'
 import { handleProtocol, registerSchemePrivileges } from './protocol'
@@ -125,6 +125,16 @@ function registerIpc(): void {
     if (path) shell.showItemInFolder(path)
   })
 
+  ipcMain.handle(IPC.family, (_e, id: number) => getFamily(id))
+  ipcMain.handle(IPC.updateFamily, (_e, id: number, patch: unknown) => organize.updateFamily(id, patch))
+  ipcMain.handle(IPC.addSourceLink, (_e, id: number, url: unknown) => organize.addSourceLink(id, url))
+  ipcMain.handle(IPC.removeSourceLink, (_e, id: number) => organize.removeSourceLink(id))
+  ipcMain.handle(IPC.moveStyle, (_e, id: number, target: unknown) => organize.moveStyle(id, target))
+  ipcMain.handle(IPC.revealAsset, (_e, id: number) => {
+    const path = organize.assetFilePath(id)
+    if (path) shell.showItemInFolder(path)
+  })
+
   ipcMain.handle(IPC.tags, () => organize.listTags())
   ipcMain.handle(IPC.setFamilyTags, (_e, id: number, tags: unknown) => organize.setFamilyTags(id, tags))
   ipcMain.handle(IPC.setCategory, (_e, ids: unknown, category: unknown) => organize.setCategory(ids, category))
@@ -175,6 +185,7 @@ function registerIpc(): void {
 
 app.whenReady().then(() => {
   getDb()
+  backfillOriginFamilies()
   handleProtocol()
   registerIpc()
   createWindow()
